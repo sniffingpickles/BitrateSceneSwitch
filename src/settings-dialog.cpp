@@ -57,17 +57,20 @@ void SettingsDialog::setupUI()
     QWidget *scenesTab = new QWidget();
     QWidget *serversTab = new QWidget();
     QWidget *advancedTab = new QWidget();
+    QWidget *chatTab = new QWidget();
     
     setupGeneralTab(generalTab);
     setupTriggersTab(triggersTab);
     setupScenesTab(scenesTab);
     setupServersTab(serversTab);
     setupAdvancedTab(advancedTab);
+    setupChatTab(chatTab);
     
     tabWidget_->addTab(generalTab, "General");
     tabWidget_->addTab(triggersTab, "Triggers");
     tabWidget_->addTab(scenesTab, "Scenes");
     tabWidget_->addTab(serversTab, "Servers");
+    tabWidget_->addTab(chatTab, "Chat");
     tabWidget_->addTab(advancedTab, "Advanced");
     
     mainLayout->addWidget(tabWidget_);
@@ -245,6 +248,71 @@ void SettingsDialog::setupAdvancedTab(QWidget *tab)
     layout->addStretch();
 }
 
+void SettingsDialog::setupChatTab(QWidget *tab)
+{
+    QVBoxLayout *layout = new QVBoxLayout(tab);
+    
+    // Chat connection settings
+    QGroupBox *connGroup = new QGroupBox("Chat Connection", tab);
+    QFormLayout *connForm = new QFormLayout(connGroup);
+    
+    chatEnabledCheckbox_ = new QCheckBox("Enable chat integration", tab);
+    chatEnabledCheckbox_->setToolTip("Connect to Twitch/Kick chat for bot commands");
+    
+    chatPlatformCombo_ = new QComboBox(tab);
+    chatPlatformCombo_->addItems({"Twitch", "Kick"});
+    
+    chatChannelEdit_ = new QLineEdit(tab);
+    chatChannelEdit_->setPlaceholderText("your_channel_name");
+    
+    chatBotUsernameEdit_ = new QLineEdit(tab);
+    chatBotUsernameEdit_->setPlaceholderText("(optional - uses channel name if empty)");
+    
+    chatOauthEdit_ = new QLineEdit(tab);
+    chatOauthEdit_->setEchoMode(QLineEdit::Password);
+    chatOauthEdit_->setPlaceholderText("oauth:xxxxxxxxxxxxxx");
+    chatOauthEdit_->setToolTip("Get your OAuth token from https://twitchapps.com/tmi/");
+    
+    connForm->addRow(chatEnabledCheckbox_);
+    connForm->addRow("Platform:", chatPlatformCombo_);
+    connForm->addRow("Channel:", chatChannelEdit_);
+    connForm->addRow("Bot Username:", chatBotUsernameEdit_);
+    connForm->addRow("OAuth Token:", chatOauthEdit_);
+    
+    layout->addWidget(connGroup);
+    
+    // Chat permissions
+    QGroupBox *permGroup = new QGroupBox("Permissions", tab);
+    QFormLayout *permForm = new QFormLayout(permGroup);
+    
+    chatAdminsEdit_ = new QLineEdit(tab);
+    chatAdminsEdit_->setPlaceholderText("user1, user2, user3 (empty = channel owner only)");
+    chatAdminsEdit_->setToolTip("Comma-separated list of users who can use commands");
+    
+    chatAnnounceCheckbox_ = new QCheckBox("Announce scene changes in chat", tab);
+    
+    permForm->addRow("Allowed Users:", chatAdminsEdit_);
+    permForm->addRow(chatAnnounceCheckbox_);
+    
+    layout->addWidget(permGroup);
+    
+    // Available commands info
+    QGroupBox *cmdGroup = new QGroupBox("Available Commands", tab);
+    QVBoxLayout *cmdLayout = new QVBoxLayout(cmdGroup);
+    QLabel *cmdLabel = new QLabel(
+        "• !live - Switch to Live scene\n"
+        "• !low - Switch to Low scene\n"
+        "• !brb - Switch to BRB/Offline scene\n"
+        "• !refresh - Refresh scene (fix issues)\n"
+        "• !status - Show current status\n"
+        "• !trigger - Force switch check\n"
+        "• !fix - Alias for refresh", tab);
+    cmdLayout->addWidget(cmdLabel);
+    
+    layout->addWidget(cmdGroup);
+    layout->addStretch();
+}
+
 void SettingsDialog::populateSceneComboBox(QComboBox *combo, bool allowEmpty)
 {
     combo->clear();
@@ -334,6 +402,22 @@ void SettingsDialog::loadSettings()
         prioritySpin->setValue(server.priority);
         serverTable_->setCellWidget(row, 5, prioritySpin);
     }
+
+    // Load chat settings
+    chatEnabledCheckbox_->setChecked(config_->chat.enabled);
+    chatPlatformCombo_->setCurrentIndex(static_cast<int>(config_->chat.platform));
+    chatChannelEdit_->setText(QString::fromStdString(config_->chat.channel));
+    chatBotUsernameEdit_->setText(QString::fromStdString(config_->chat.botUsername));
+    chatOauthEdit_->setText(QString::fromStdString(config_->chat.oauthToken));
+    chatAnnounceCheckbox_->setChecked(config_->chat.announceSceneChanges);
+    
+    // Convert admins vector to comma-separated string
+    QString adminsStr;
+    for (size_t i = 0; i < config_->chat.admins.size(); i++) {
+        if (i > 0) adminsStr += ", ";
+        adminsStr += QString::fromStdString(config_->chat.admins[i]);
+    }
+    chatAdminsEdit_->setText(adminsStr);
 }
 
 void SettingsDialog::saveSettings()
@@ -390,6 +474,24 @@ void SettingsDialog::saveSettings()
     }
     
     config_->sortServersByPriority();
+
+    // Save chat settings
+    config_->chat.enabled = chatEnabledCheckbox_->isChecked();
+    config_->chat.platform = static_cast<ChatPlatform>(chatPlatformCombo_->currentIndex());
+    config_->chat.channel = chatChannelEdit_->text().toStdString();
+    config_->chat.botUsername = chatBotUsernameEdit_->text().toStdString();
+    config_->chat.oauthToken = chatOauthEdit_->text().toStdString();
+    config_->chat.announceSceneChanges = chatAnnounceCheckbox_->isChecked();
+    
+    // Parse admins from comma-separated string
+    config_->chat.admins.clear();
+    QString adminsStr = chatAdminsEdit_->text();
+    if (!adminsStr.isEmpty()) {
+        QStringList adminsList = adminsStr.split(',', Qt::SkipEmptyParts);
+        for (const QString &admin : adminsList) {
+            config_->chat.admins.push_back(admin.trimmed().toStdString());
+        }
+    }
 }
 
 void SettingsDialog::onAddServer()
@@ -446,6 +548,13 @@ void SettingsDialog::onSave()
     
     if (switcher_) {
         switcher_->reloadServers();
+        
+        // Handle chat connection based on settings
+        if (config_->chat.enabled) {
+            switcher_->connectChat();
+        } else {
+            switcher_->disconnectChat();
+        }
     }
 
     accept();

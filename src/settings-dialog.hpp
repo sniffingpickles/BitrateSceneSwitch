@@ -37,6 +37,7 @@ private:
     void setupScenesTab(QWidget *tab);
     void setupServersTab(QWidget *tab);
     void setupAdvancedTab(QWidget *tab);
+    void setupChatTab(QWidget *tab);
     void loadSettings();
     void saveSettings();
     void populateSceneComboBox(QComboBox *combo, bool allowEmpty = false);
@@ -88,6 +89,16 @@ private:
 
     // Timer for status updates
     QTimer *statusTimer_;
+
+    // Chat settings
+    QCheckBox *chatEnabledCheckbox_;
+    QComboBox *chatPlatformCombo_;
+    QLineEdit *chatChannelEdit_;
+    QLineEdit *chatBotUsernameEdit_;
+    QLineEdit *chatOauthEdit_;
+    QLineEdit *chatAdminsEdit_;
+    QCheckBox *chatAnnounceCheckbox_;
+    QPushButton *chatConnectBtn_;
 };
 
 } // namespace BitrateSwitch
