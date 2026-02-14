@@ -191,6 +191,7 @@ void Switcher::doSwitchCheck()
     }
 
     switchToScene(targetScene);
+    announceSceneChange(currentSwitchType);
 }
 
 void Switcher::handleOfflineTimeout()
