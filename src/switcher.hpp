@@ -50,6 +50,7 @@ public:
     void switchToEnding();
     void refreshScene();
     void triggerSwitch();
+    bool switchToSceneByName(const std::string& name);  // Case-insensitive scene switch
     
     // Chat integration
     void connectChat();

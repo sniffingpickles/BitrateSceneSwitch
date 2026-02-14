@@ -33,7 +33,8 @@ enum class ChatCommand {
     Refresh,
     Status,
     Trigger,
-    Fix
+    Fix,
+    SwitchScene  // !ss <scene_name>
 };
 
 struct ChatMessage {

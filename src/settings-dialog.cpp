@@ -81,6 +81,17 @@ void SettingsDialog::setupUI()
     connect(buttonBox, &QDialogButtonBox::accepted, this, &SettingsDialog::onSave);
     connect(buttonBox, &QDialogButtonBox::rejected, this, &QDialog::reject);
     mainLayout->addWidget(buttonBox);
+
+    // Branding footer
+    QLabel *brandingLabel = new QLabel(this);
+    brandingLabel->setText(
+        "<div style='text-align: center; color: #888;'>"
+        "Bitrate Scene Switch v1.0.0 | Powered by "
+        "<a href='https://irlhosting.com' style='color: #6441a5;'>IRLHosting.com</a>"
+        "</div>");
+    brandingLabel->setOpenExternalLinks(true);
+    brandingLabel->setAlignment(Qt::AlignCenter);
+    mainLayout->addWidget(brandingLabel);
 }
 
 void SettingsDialog::setupGeneralTab(QWidget *tab)
@@ -303,6 +314,7 @@ void SettingsDialog::setupChatTab(QWidget *tab)
         "• !live - Switch to Live scene\n"
         "• !low - Switch to Low scene\n"
         "• !brb - Switch to BRB/Offline scene\n"
+        "• !ss <name> - Switch to any scene (case-insensitive)\n"
         "• !refresh - Refresh scene (fix issues)\n"
         "• !status - Show current status\n"
         "• !trigger - Force switch check\n"
