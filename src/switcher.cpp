@@ -3,6 +3,8 @@
 #include <obs-frontend-api.h>
 #include <util/platform.h>
 #include <algorithm>
+#include <cstring>
+#include <thread>
 
 namespace BitrateSwitch {
 
@@ -363,10 +365,79 @@ void Switcher::switchToEnding()
 void Switcher::refreshScene()
 {
     if (!config_->optionalScenes.refresh.empty()) {
-        std::string current = getCurrentScene();
+        std::string previousScene = getCurrentScene();
+        
+        // Don't refresh if already on refresh scene
+        if (previousScene == config_->optionalScenes.refresh) {
+            blog(LOG_INFO, "[BitrateSceneSwitch] Refresh: already on refresh scene, skipping");
+            return;
+        }
+        
         switchToScene(config_->optionalScenes.refresh);
         blog(LOG_INFO, "[BitrateSceneSwitch] Refresh: switching to refresh scene");
+        
+        // Wait 5 seconds then switch back (in a separate thread to not block)
+        std::thread([this, previousScene]() {
+            std::this_thread::sleep_for(std::chrono::seconds(5));
+            switchToScene(previousScene);
+            blog(LOG_INFO, "[BitrateSceneSwitch] Refresh: returning to previous scene: %s", previousScene.c_str());
+        }).detach();
+    } else {
+        // No refresh scene configured, fall back to fix
+        fixMediaSources();
     }
+}
+
+void Switcher::fixMediaSources()
+{
+    // Get current scene and refresh all media sources with RTMP/SRT/UDP/RIST/RTSP inputs
+    obs_source_t *currentSceneSource = obs_frontend_get_current_scene();
+    if (!currentSceneSource) return;
+    
+    obs_scene_t *scene = obs_scene_from_source(currentSceneSource);
+    if (!scene) {
+        obs_source_release(currentSceneSource);
+        return;
+    }
+    
+    // Enumerate scene items and refresh media sources
+    obs_scene_enum_items(scene, [](obs_scene_t*, obs_sceneitem_t *item, void*) -> bool {
+        obs_source_t *source = obs_sceneitem_get_source(item);
+        if (!source) return true;
+        
+        const char *sourceId = obs_source_get_id(source);
+        if (!sourceId) return true;
+        
+        // Check if it's a media source (ffmpeg_source or vlc_source)
+        if (strcmp(sourceId, "ffmpeg_source") == 0 || strcmp(sourceId, "vlc_source") == 0) {
+            obs_data_t *settings = obs_source_get_settings(source);
+            if (settings) {
+                const char *input = obs_data_get_string(settings, "input");
+                if (input) {
+                    std::string inputStr = input;
+                    std::transform(inputStr.begin(), inputStr.end(), inputStr.begin(), ::tolower);
+                    
+                    // Check if it's a streaming protocol
+                    if (inputStr.find("rtmp") != std::string::npos ||
+                        inputStr.find("srt") != std::string::npos ||
+                        inputStr.find("udp") != std::string::npos ||
+                        inputStr.find("rist") != std::string::npos ||
+                        inputStr.find("rtsp") != std::string::npos) {
+                        
+                        // Refresh by updating settings (triggers reconnect)
+                        obs_source_update(source, settings);
+                        blog(LOG_INFO, "[BitrateSceneSwitch] Fix: refreshed media source: %s", 
+                             obs_source_get_name(source));
+                    }
+                }
+                obs_data_release(settings);
+            }
+        }
+        return true;
+    }, nullptr);
+    
+    obs_source_release(currentSceneSource);
+    blog(LOG_INFO, "[BitrateSceneSwitch] Fix: refreshed media sources");
 }
 
 void Switcher::switchToLow()
@@ -494,7 +565,7 @@ void Switcher::handleChatCommand(const ChatMessage& msg)
         }
         break;
     case ChatCommand::Fix:
-        refreshScene();
+        fixMediaSources();
         if (config_->chat.announceSceneChanges && chatClient_) {
             chatClient_->sendMessage("Attempting to fix stream...");
         }
