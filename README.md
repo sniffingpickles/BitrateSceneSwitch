@@ -33,7 +33,7 @@
 
 ---
 
-## Installation
+<img src="images/header-installation.svg" alt="Installation" width="100%">
 
 ### Windows
 
@@ -54,7 +54,7 @@
 
 ---
 
-## Chat Commands
+<img src="images/header-chat-commands.svg" alt="Chat Commands" width="100%">
 
 Control the switcher via Twitch chat (requires setup in Chat tab):
 
@@ -70,7 +70,7 @@ Control the switcher via Twitch chat (requires setup in Chat tab):
 
 ---
 
-## Supported Servers
+<img src="images/header-servers.svg" alt="Supported Servers" width="100%">
 
 | Server | Stats URL Example |
 |--------|-------------------|
