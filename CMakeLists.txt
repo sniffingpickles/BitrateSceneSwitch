@@ -83,6 +83,7 @@ endif()
 if(WIN32)
     install(TARGETS ${PROJECT_NAME}
         RUNTIME DESTINATION "obs-plugins/64bit"
+        LIBRARY DESTINATION "obs-plugins/64bit"
     )
     install(DIRECTORY data/
         DESTINATION "data/obs-plugins/${PROJECT_NAME}"
