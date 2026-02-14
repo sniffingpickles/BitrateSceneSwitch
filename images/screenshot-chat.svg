@@ -1,0 +1,12 @@
+<svg width="800" height="500" xmlns="http://www.w3.org/2000/svg">
+  <rect width="800" height="500" fill="#2d2d3d"/>
+  <rect x="2" y="2" width="796" height="496" fill="none" stroke="#22d3ee" stroke-width="2"/>
+  <circle cx="400" cy="230" r="60" fill="rgba(34, 211, 238, 0.3)"/>
+  <circle cx="400" cy="230" r="40" fill="none" stroke="#22d3ee" stroke-width="4"/>
+  <text x="400" y="310" text-anchor="middle" font-family="Arial, sans-serif" font-weight="bold" font-size="24" fill="#6b7280">
+    Chat Integration
+  </text>
+  <text x="400" y="340" text-anchor="middle" font-family="Arial, sans-serif" font-size="16" fill="#555">
+    Screenshot placeholder
+  </text>
+</svg>
