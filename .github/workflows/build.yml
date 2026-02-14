@@ -46,8 +46,8 @@ jobs:
       - name: Download OBS deps
         shell: pwsh
         run: |
-          # Download OBS deps (includes curl)
-          $depsUrl = "https://github.com/obsproject/obs-deps/releases/download/2024-03-12/windows-deps-2024-03-12-x64.zip"
+          # Download OBS deps - using latest available release
+          $depsUrl = "https://github.com/obsproject/obs-deps/releases/download/2025-08-23/windows-deps-2025-08-23-x64.zip"
           Invoke-WebRequest -Uri $depsUrl -OutFile deps.zip
           Expand-Archive deps.zip -DestinationPath obs-deps
           
