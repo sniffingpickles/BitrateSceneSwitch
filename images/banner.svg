@@ -1,0 +1,51 @@
+<svg width="1280" height="320" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bannerBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1a1a2e"/>
+      <stop offset="50%" style="stop-color:#16213e"/>
+      <stop offset="100%" style="stop-color:#1a1a2e"/>
+    </linearGradient>
+  </defs>
+  <rect width="1280" height="320" fill="url(#bannerBg)"/>
+  <g opacity="0.15" stroke="#22d3ee" stroke-width="2">
+    <line x1="-100" y1="0" x2="100" y2="320"/>
+    <line x1="-40" y1="0" x2="160" y2="320"/>
+    <line x1="20" y1="0" x2="220" y2="320"/>
+    <line x1="80" y1="0" x2="280" y2="320"/>
+    <line x1="140" y1="0" x2="340" y2="320"/>
+    <line x1="200" y1="0" x2="400" y2="320"/>
+    <line x1="260" y1="0" x2="460" y2="320"/>
+    <line x1="320" y1="0" x2="520" y2="320"/>
+    <line x1="380" y1="0" x2="580" y2="320"/>
+    <line x1="440" y1="0" x2="640" y2="320"/>
+    <line x1="500" y1="0" x2="700" y2="320"/>
+    <line x1="560" y1="0" x2="760" y2="320"/>
+    <line x1="620" y1="0" x2="820" y2="320"/>
+    <line x1="680" y1="0" x2="880" y2="320"/>
+    <line x1="740" y1="0" x2="940" y2="320"/>
+    <line x1="800" y1="0" x2="1000" y2="320"/>
+    <line x1="860" y1="0" x2="1060" y2="320"/>
+    <line x1="920" y1="0" x2="1120" y2="320"/>
+    <line x1="980" y1="0" x2="1180" y2="320"/>
+    <line x1="1040" y1="0" x2="1240" y2="320"/>
+    <line x1="1100" y1="0" x2="1300" y2="320"/>
+    <line x1="1160" y1="0" x2="1360" y2="320"/>
+    <line x1="1220" y1="0" x2="1420" y2="320"/>
+    <line x1="1280" y1="0" x2="1480" y2="320"/>
+    <line x1="1340" y1="0" x2="1540" y2="320"/>
+    <line x1="1400" y1="0" x2="1600" y2="320"/>
+    <line x1="1460" y1="0" x2="1660" y2="320"/>
+    <line x1="1520" y1="0" x2="1720" y2="320"/>
+    <line x1="1580" y1="0" x2="1780" y2="320"/>
+    <line x1="1640" y1="0" x2="1840" y2="320"/>
+  </g>
+  <text x="640" y="120" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-weight="bold" font-size="72">
+    <tspan fill="#ffffff">Bitrate</tspan><tspan fill="#22d3ee">SceneSwitch</tspan>
+  </text>
+  <text x="640" y="190" text-anchor="middle" font-family="Arial, sans-serif" font-size="24" fill="#6b7280">
+    Automatic OBS scene switching based on stream bitrate
+  </text>
+  <text x="640" y="250" text-anchor="middle" font-family="Arial, sans-serif" font-size="18">
+    <tspan fill="#ffffff">Powered by IRL</tspan><tspan fill="#22d3ee">Hosting</tspan>
+  </text>
+</svg>

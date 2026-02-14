@@ -1,0 +1,40 @@
+<svg width="800" height="200" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#1a1a2e"/>
+      <stop offset="100%" style="stop-color:#16213e"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="200" fill="url(#bg)"/>
+  <g opacity="0.1" stroke="#22d3ee" stroke-width="1">
+    <line x1="0" y1="0" x2="100" y2="200"/>
+    <line x1="40" y1="0" x2="140" y2="200"/>
+    <line x1="80" y1="0" x2="180" y2="200"/>
+    <line x1="120" y1="0" x2="220" y2="200"/>
+    <line x1="160" y1="0" x2="260" y2="200"/>
+    <line x1="200" y1="0" x2="300" y2="200"/>
+    <line x1="240" y1="0" x2="340" y2="200"/>
+    <line x1="280" y1="0" x2="380" y2="200"/>
+    <line x1="320" y1="0" x2="420" y2="200"/>
+    <line x1="360" y1="0" x2="460" y2="200"/>
+    <line x1="400" y1="0" x2="500" y2="200"/>
+    <line x1="440" y1="0" x2="540" y2="200"/>
+    <line x1="480" y1="0" x2="580" y2="200"/>
+    <line x1="520" y1="0" x2="620" y2="200"/>
+    <line x1="560" y1="0" x2="660" y2="200"/>
+    <line x1="600" y1="0" x2="700" y2="200"/>
+    <line x1="640" y1="0" x2="740" y2="200"/>
+    <line x1="680" y1="0" x2="780" y2="200"/>
+    <line x1="720" y1="0" x2="820" y2="200"/>
+    <line x1="760" y1="0" x2="860" y2="200"/>
+    <line x1="800" y1="0" x2="900" y2="200"/>
+    <line x1="840" y1="0" x2="940" y2="200"/>
+    <line x1="880" y1="0" x2="980" y2="200"/>
+    <line x1="920" y1="0" x2="1020" y2="200"/>
+    <line x1="960" y1="0" x2="1060" y2="200"/>
+  </g>
+  <text x="400" y="100" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-weight="bold" font-size="64">
+    <tspan fill="#ffffff">Bitrate</tspan><tspan fill="#22d3ee">SceneSwitch</tspan>
+  </text>
+  <line x1="115" y1="140" x2="685" y2="140" stroke="#22d3ee" stroke-width="3"/>
+</svg>
