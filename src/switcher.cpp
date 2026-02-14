@@ -8,6 +8,7 @@ namespace BitrateSwitch {
 Switcher::Switcher(Config *config)
     : config_(config)
     , sameTypeStart_(std::chrono::steady_clock::now())
+    , offlineStart_(std::chrono::steady_clock::now())
 {
     prevScene_ = config_->scenes.normal;
     reloadServers();
@@ -55,13 +56,37 @@ void Switcher::onStreamingStarted()
 {
     isStreaming_ = true;
     sameTypeStart_ = std::chrono::steady_clock::now();
+    offlineStart_ = std::chrono::steady_clock::now();
     blog(LOG_INFO, "[BitrateSceneSwitch] Streaming started");
+
+    // Handle optional: switch to starting scene on stream start
+    if (config_->options.switchToStartingOnStreamStart && 
+        !config_->optionalScenes.starting.empty()) {
+        switchToScene(config_->optionalScenes.starting);
+        wasOnStartingScene_ = true;
+    }
+
+    // Handle optional: auto-record while streaming
+    if (config_->options.recordWhileStreaming && !isRecording_) {
+        obs_frontend_recording_start();
+    }
 }
 
 void Switcher::onStreamingStopped()
 {
     isStreaming_ = false;
+    wasOnStartingScene_ = false;
     blog(LOG_INFO, "[BitrateSceneSwitch] Streaming stopped");
+
+    // Stop recording if we started it
+    if (config_->options.recordWhileStreaming && isRecording_) {
+        obs_frontend_recording_stop();
+    }
+
+    // Switch to ending scene if configured
+    if (!config_->optionalScenes.ending.empty()) {
+        switchToScene(config_->optionalScenes.ending);
+    }
 }
 
 void Switcher::onSceneChanged()
@@ -76,6 +101,18 @@ void Switcher::onSceneChanged()
         }
         obs_source_release(sceneSource);
     }
+}
+
+void Switcher::onRecordingStarted()
+{
+    isRecording_ = true;
+    blog(LOG_INFO, "[BitrateSceneSwitch] Recording started");
+}
+
+void Switcher::onRecordingStopped()
+{
+    isRecording_ = false;
+    blog(LOG_INFO, "[BitrateSceneSwitch] Recording stopped");
 }
 
 void Switcher::switcherThread()
@@ -104,7 +141,16 @@ void Switcher::switcherThread()
 
 void Switcher::doSwitchCheck()
 {
-    SwitchType currentSwitchType = getOnlineServerStatus();
+    StreamServer* activeServer = nullptr;
+    SwitchType currentSwitchType = getOnlineServerStatus(&activeServer);
+
+    // Handle starting scene auto-switch
+    if (wasOnStartingScene_ && config_->options.switchFromStartingToLive) {
+        if (currentSwitchType == SwitchType::Normal || currentSwitchType == SwitchType::Low) {
+            wasOnStartingScene_ = false;
+            // Will switch to appropriate scene below
+        }
+    }
 
     bool forceSwitch = config_->instantRecover &&
                        prevSwitchType_ == SwitchType::Offline &&
@@ -116,6 +162,11 @@ void Switcher::doSwitchCheck()
         prevSwitchType_ = currentSwitchType;
         sameTypeCount_ = 0;
         sameTypeStart_ = std::chrono::steady_clock::now();
+        
+        // Track offline start time
+        if (currentSwitchType == SwitchType::Offline) {
+            offlineStart_ = std::chrono::steady_clock::now();
+        }
     }
 
     if (sameTypeCount_ < config_->retryAttempts && !forceSwitch)
@@ -124,25 +175,13 @@ void Switcher::doSwitchCheck()
     sameTypeCount_ = 0;
 
     // Handle offline timeout
-    if (currentSwitchType == SwitchType::Offline && 
-        config_->offlineTimeoutMinutes > 0 &&
-        isStreaming_) {
-        
-        auto elapsed = std::chrono::steady_clock::now() - sameTypeStart_;
-        auto minutes = std::chrono::duration_cast<std::chrono::minutes>(elapsed).count();
-        
-        if (minutes >= config_->offlineTimeoutMinutes) {
-            blog(LOG_INFO, "[BitrateSceneSwitch] Offline timeout reached, stopping stream");
-            obs_frontend_streaming_stop();
-            return;
-        }
-    }
+    handleOfflineTimeout();
 
     std::string targetScene;
     if (currentSwitchType == SwitchType::Previous) {
         targetScene = prevScene_;
     } else {
-        targetScene = getSceneForType(currentSwitchType);
+        targetScene = getSceneForType(currentSwitchType, activeServer);
     }
 
     if (currentSwitchType == SwitchType::Normal || 
@@ -153,7 +192,37 @@ void Switcher::doSwitchCheck()
     switchToScene(targetScene);
 }
 
-SwitchType Switcher::getOnlineServerStatus()
+void Switcher::handleOfflineTimeout()
+{
+    if (prevSwitchType_ != SwitchType::Offline)
+        return;
+    
+    if (config_->options.offlineTimeoutMinutes == 0)
+        return;
+    
+    if (!isStreaming_)
+        return;
+
+    auto elapsed = std::chrono::steady_clock::now() - offlineStart_;
+    auto minutes = std::chrono::duration_cast<std::chrono::minutes>(elapsed).count();
+    
+    if (minutes >= static_cast<long>(config_->options.offlineTimeoutMinutes)) {
+        blog(LOG_INFO, "[BitrateSceneSwitch] Offline timeout reached (%d min), stopping stream", 
+             config_->options.offlineTimeoutMinutes);
+        obs_frontend_streaming_stop();
+    }
+}
+
+void Switcher::handleStartingScene()
+{
+    // Called when we detect stream is online and we were on starting scene
+    if (wasOnStartingScene_ && config_->options.switchFromStartingToLive) {
+        wasOnStartingScene_ = false;
+        switchToScene(config_->scenes.normal);
+    }
+}
+
+SwitchType Switcher::getOnlineServerStatus(StreamServer** activeServer)
 {
     std::lock_guard<std::mutex> lock(mutex_);
 
@@ -162,11 +231,15 @@ SwitchType Switcher::getOnlineServerStatus()
         
         if (status != SwitchType::Offline) {
             lastBitrateInfo_ = server->getBitrate();
+            lastBitrateInfo_.serverName = server->getName();
+            lastActiveServerName_ = server->getName();
+            if (activeServer) *activeServer = server.get();
             return status;
         }
     }
 
     lastBitrateInfo_ = BitrateInfo();
+    if (activeServer) *activeServer = nullptr;
     return SwitchType::Offline;
 }
 
@@ -187,8 +260,27 @@ void Switcher::switchToScene(const std::string &sceneName)
     }
 }
 
-std::string Switcher::getSceneForType(SwitchType type)
+std::string Switcher::getSceneForType(SwitchType type, StreamServer* server)
 {
+    // Check for server override scenes
+    if (server && server->hasOverrideScenes()) {
+        const OverrideScenes& override = server->getOverrideScenes();
+        switch (type) {
+        case SwitchType::Normal:
+            if (!override.normal.empty()) return override.normal;
+            break;
+        case SwitchType::Low:
+            if (!override.low.empty()) return override.low;
+            break;
+        case SwitchType::Offline:
+            if (!override.offline.empty()) return override.offline;
+            break;
+        default:
+            break;
+        }
+    }
+
+    // Default scenes
     switch (type) {
     case SwitchType::Normal:
         return config_->scenes.normal;
@@ -203,9 +295,19 @@ std::string Switcher::getSceneForType(SwitchType type)
 
 bool Switcher::isSceneSwitchable(const std::string &scene)
 {
-    return scene == config_->scenes.normal ||
-           scene == config_->scenes.low ||
-           scene == config_->scenes.offline;
+    // Check main switching scenes
+    if (scene == config_->scenes.normal ||
+        scene == config_->scenes.low ||
+        scene == config_->scenes.offline) {
+        return true;
+    }
+    
+    // Check if on starting scene and auto-switch is enabled
+    if (wasOnStartingScene_ && scene == config_->optionalScenes.starting) {
+        return config_->options.switchFromStartingToLive;
+    }
+    
+    return false;
 }
 
 std::string Switcher::getCurrentScene()
@@ -222,6 +324,50 @@ std::string Switcher::getCurrentScene()
     }
     
     return name;
+}
+
+// Manual scene command methods (from NOALBS chat commands)
+void Switcher::switchToLive()
+{
+    switchToScene(config_->scenes.normal);
+    blog(LOG_INFO, "[BitrateSceneSwitch] Manual switch to Live scene");
+}
+
+void Switcher::switchToPrivacy()
+{
+    if (!config_->optionalScenes.privacy.empty()) {
+        switchToScene(config_->optionalScenes.privacy);
+        blog(LOG_INFO, "[BitrateSceneSwitch] Manual switch to Privacy scene");
+    }
+}
+
+void Switcher::switchToStarting()
+{
+    if (!config_->optionalScenes.starting.empty()) {
+        switchToScene(config_->optionalScenes.starting);
+        wasOnStartingScene_ = true;
+        blog(LOG_INFO, "[BitrateSceneSwitch] Manual switch to Starting scene");
+    }
+}
+
+void Switcher::switchToEnding()
+{
+    if (!config_->optionalScenes.ending.empty()) {
+        switchToScene(config_->optionalScenes.ending);
+        blog(LOG_INFO, "[BitrateSceneSwitch] Manual switch to Ending scene");
+    }
+}
+
+void Switcher::refreshScene()
+{
+    if (!config_->optionalScenes.refresh.empty()) {
+        std::string current = getCurrentScene();
+        switchToScene(config_->optionalScenes.refresh);
+        blog(LOG_INFO, "[BitrateSceneSwitch] Refresh: switching to refresh scene");
+        
+        // Schedule switch back after a short delay (handled externally or via timer)
+        // For now, just log - full implementation would need a timer
+    }
 }
 
 BitrateInfo Switcher::getCurrentBitrate()
@@ -243,8 +389,14 @@ std::string Switcher::getStatusString()
     if (servers_.empty())
         return "No servers configured";
     
-    if (lastBitrateInfo_.isOnline)
-        return "Online - " + lastBitrateInfo_.message;
+    if (lastBitrateInfo_.isOnline) {
+        std::string status = "Online";
+        if (!lastBitrateInfo_.serverName.empty()) {
+            status += " (" + lastBitrateInfo_.serverName + ")";
+        }
+        status += " - " + lastBitrateInfo_.message;
+        return status;
+    }
     
     return "Offline";
 }

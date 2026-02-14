@@ -1,7 +1,40 @@
 #include "config.hpp"
 #include <obs-module.h>
+#include <algorithm>
 
 namespace BitrateSwitch {
+
+const char* getServerTypeName(ServerType type)
+{
+    switch (type) {
+    case ServerType::Belabox: return "BELABOX";
+    case ServerType::Nginx: return "NGINX";
+    case ServerType::SrtLiveServer: return "SRT Live Server";
+    case ServerType::Mediamtx: return "MediaMTX";
+    case ServerType::NodeMediaServer: return "Node Media Server";
+    case ServerType::Nimble: return "Nimble";
+    case ServerType::Rist: return "RIST";
+    case ServerType::OpenIRL: return "OpenIRL";
+    case ServerType::IrlHosting: return "IRLHosting";
+    case ServerType::Xiu: return "Xiu";
+    default: return "Unknown";
+    }
+}
+
+ServerType getServerTypeFromName(const std::string& name)
+{
+    if (name == "BELABOX" || name == "Belabox") return ServerType::Belabox;
+    if (name == "NGINX" || name == "Nginx") return ServerType::Nginx;
+    if (name == "SRT Live Server" || name == "SrtLiveServer") return ServerType::SrtLiveServer;
+    if (name == "MediaMTX" || name == "Mediamtx") return ServerType::Mediamtx;
+    if (name == "Node Media Server" || name == "NodeMediaServer") return ServerType::NodeMediaServer;
+    if (name == "Nimble") return ServerType::Nimble;
+    if (name == "RIST" || name == "Rist") return ServerType::Rist;
+    if (name == "OpenIRL") return ServerType::OpenIRL;
+    if (name == "IRLHosting" || name == "IrlHosting") return ServerType::IrlHosting;
+    if (name == "Xiu") return ServerType::Xiu;
+    return ServerType::Belabox;
+}
 
 Config::Config()
 {
@@ -13,7 +46,7 @@ Config::~Config() = default;
 void Config::setDefaults()
 {
     enabled = true;
-    onlyWhenStreaming = false;
+    onlyWhenStreaming = true;
     instantRecover = true;
     autoNotify = true;
     retryAttempts = 5;
@@ -27,29 +60,54 @@ void Config::setDefaults()
     scenes.low = "Low";
     scenes.offline = "Offline";
 
+    optionalScenes = OptionalScenes();
+    options = OptionalOptions();
     servers.clear();
-    offlineTimeoutMinutes = 0;
+}
+
+void Config::sortServersByPriority()
+{
+    std::sort(servers.begin(), servers.end(),
+        [](const StreamServerConfig& a, const StreamServerConfig& b) {
+            return a.priority < b.priority;
+        });
 }
 
 obs_data_t *Config::save()
 {
     obs_data_t *data = obs_data_create();
 
+    // Core settings
     obs_data_set_bool(data, "enabled", enabled);
     obs_data_set_bool(data, "only_when_streaming", onlyWhenStreaming);
     obs_data_set_bool(data, "instant_recover", instantRecover);
     obs_data_set_bool(data, "auto_notify", autoNotify);
     obs_data_set_int(data, "retry_attempts", retryAttempts);
 
+    // Triggers
     obs_data_set_int(data, "trigger_low", triggers.low);
     obs_data_set_int(data, "trigger_rtt", triggers.rtt);
     obs_data_set_int(data, "trigger_offline", triggers.offline);
     obs_data_set_int(data, "trigger_rtt_offline", triggers.rttOffline);
 
+    // Switching scenes
     obs_data_set_string(data, "scene_normal", scenes.normal.c_str());
     obs_data_set_string(data, "scene_low", scenes.low.c_str());
     obs_data_set_string(data, "scene_offline", scenes.offline.c_str());
 
+    // Optional scenes
+    obs_data_set_string(data, "scene_starting", optionalScenes.starting.c_str());
+    obs_data_set_string(data, "scene_ending", optionalScenes.ending.c_str());
+    obs_data_set_string(data, "scene_privacy", optionalScenes.privacy.c_str());
+    obs_data_set_string(data, "scene_refresh", optionalScenes.refresh.c_str());
+
+    // Optional options
+    obs_data_set_int(data, "offline_timeout", options.offlineTimeoutMinutes);
+    obs_data_set_bool(data, "record_while_streaming", options.recordWhileStreaming);
+    obs_data_set_bool(data, "switch_to_starting", options.switchToStartingOnStreamStart);
+    obs_data_set_bool(data, "switch_from_starting", options.switchFromStartingToLive);
+
+    // Stream servers
     obs_data_array_t *serversArray = obs_data_array_create();
     for (const auto &server : servers) {
         obs_data_t *serverData = obs_data_create();
@@ -57,15 +115,29 @@ obs_data_t *Config::save()
         obs_data_set_string(serverData, "name", server.name.c_str());
         obs_data_set_string(serverData, "stats_url", server.statsUrl.c_str());
         obs_data_set_string(serverData, "publisher", server.publisher.c_str());
+        obs_data_set_string(serverData, "application", server.application.c_str());
+        obs_data_set_string(serverData, "key", server.key.c_str());
+        obs_data_set_string(serverData, "id", server.id.c_str());
+        obs_data_set_string(serverData, "auth_user", server.authUser.c_str());
+        obs_data_set_string(serverData, "auth_pass", server.authPass.c_str());
         obs_data_set_int(serverData, "priority", server.priority);
         obs_data_set_bool(serverData, "enabled", server.enabled);
+        
+        // Override scenes
+        obs_data_set_bool(serverData, "override_enabled", server.overrideScenes.enabled);
+        obs_data_set_string(serverData, "override_normal", server.overrideScenes.normal.c_str());
+        obs_data_set_string(serverData, "override_low", server.overrideScenes.low.c_str());
+        obs_data_set_string(serverData, "override_offline", server.overrideScenes.offline.c_str());
+        
+        // Depends on
+        obs_data_set_bool(serverData, "depends_enabled", server.dependsOn.enabled);
+        obs_data_set_string(serverData, "depends_server", server.dependsOn.serverName.c_str());
+        
         obs_data_array_push_back(serversArray, serverData);
         obs_data_release(serverData);
     }
     obs_data_set_array(data, "servers", serversArray);
     obs_data_array_release(serversArray);
-
-    obs_data_set_int(data, "offline_timeout", offlineTimeoutMinutes);
 
     return data;
 }
@@ -75,6 +147,7 @@ void Config::load(obs_data_t *data)
     if (!data)
         return;
 
+    // Core settings
     enabled = obs_data_get_bool(data, "enabled");
     onlyWhenStreaming = obs_data_get_bool(data, "only_when_streaming");
     instantRecover = obs_data_get_bool(data, "instant_recover");
@@ -82,11 +155,13 @@ void Config::load(obs_data_t *data)
     retryAttempts = static_cast<uint8_t>(obs_data_get_int(data, "retry_attempts"));
     if (retryAttempts == 0) retryAttempts = 5;
 
+    // Triggers
     triggers.low = static_cast<uint32_t>(obs_data_get_int(data, "trigger_low"));
     triggers.rtt = static_cast<uint32_t>(obs_data_get_int(data, "trigger_rtt"));
     triggers.offline = static_cast<uint32_t>(obs_data_get_int(data, "trigger_offline"));
     triggers.rttOffline = static_cast<uint32_t>(obs_data_get_int(data, "trigger_rtt_offline"));
 
+    // Switching scenes
     const char *normal = obs_data_get_string(data, "scene_normal");
     const char *low = obs_data_get_string(data, "scene_low");
     const char *offline = obs_data_get_string(data, "scene_offline");
@@ -94,6 +169,23 @@ void Config::load(obs_data_t *data)
     if (low && *low) scenes.low = low;
     if (offline && *offline) scenes.offline = offline;
 
+    // Optional scenes
+    const char *starting = obs_data_get_string(data, "scene_starting");
+    const char *ending = obs_data_get_string(data, "scene_ending");
+    const char *privacy = obs_data_get_string(data, "scene_privacy");
+    const char *refresh = obs_data_get_string(data, "scene_refresh");
+    if (starting) optionalScenes.starting = starting;
+    if (ending) optionalScenes.ending = ending;
+    if (privacy) optionalScenes.privacy = privacy;
+    if (refresh) optionalScenes.refresh = refresh;
+
+    // Optional options
+    options.offlineTimeoutMinutes = static_cast<uint32_t>(obs_data_get_int(data, "offline_timeout"));
+    options.recordWhileStreaming = obs_data_get_bool(data, "record_while_streaming");
+    options.switchToStartingOnStreamStart = obs_data_get_bool(data, "switch_to_starting");
+    options.switchFromStartingToLive = obs_data_get_bool(data, "switch_from_starting");
+
+    // Stream servers
     servers.clear();
     obs_data_array_t *serversArray = obs_data_get_array(data, "servers");
     if (serversArray) {
@@ -105,15 +197,35 @@ void Config::load(obs_data_t *data)
             server.name = obs_data_get_string(serverData, "name");
             server.statsUrl = obs_data_get_string(serverData, "stats_url");
             server.publisher = obs_data_get_string(serverData, "publisher");
+            server.application = obs_data_get_string(serverData, "application");
+            server.key = obs_data_get_string(serverData, "key");
+            server.id = obs_data_get_string(serverData, "id");
+            server.authUser = obs_data_get_string(serverData, "auth_user");
+            server.authPass = obs_data_get_string(serverData, "auth_pass");
             server.priority = static_cast<int>(obs_data_get_int(serverData, "priority"));
             server.enabled = obs_data_get_bool(serverData, "enabled");
+            
+            // Override scenes
+            server.overrideScenes.enabled = obs_data_get_bool(serverData, "override_enabled");
+            const char *ovNormal = obs_data_get_string(serverData, "override_normal");
+            const char *ovLow = obs_data_get_string(serverData, "override_low");
+            const char *ovOffline = obs_data_get_string(serverData, "override_offline");
+            if (ovNormal) server.overrideScenes.normal = ovNormal;
+            if (ovLow) server.overrideScenes.low = ovLow;
+            if (ovOffline) server.overrideScenes.offline = ovOffline;
+            
+            // Depends on
+            server.dependsOn.enabled = obs_data_get_bool(serverData, "depends_enabled");
+            const char *dependsServer = obs_data_get_string(serverData, "depends_server");
+            if (dependsServer) server.dependsOn.serverName = dependsServer;
+            
             servers.push_back(server);
             obs_data_release(serverData);
         }
         obs_data_array_release(serversArray);
     }
 
-    offlineTimeoutMinutes = static_cast<uint32_t>(obs_data_get_int(data, "offline_timeout"));
+    sortServersByPriority();
 }
 
 } // namespace BitrateSwitch

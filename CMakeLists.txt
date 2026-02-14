@@ -41,6 +41,10 @@ add_library(${PROJECT_NAME} MODULE
     src/servers/sls.hpp
     src/servers/mediamtx.cpp
     src/servers/mediamtx.hpp
+    src/servers/nms.cpp
+    src/servers/nms.hpp
+    src/servers/nimble.cpp
+    src/servers/nimble.hpp
 )
 
 target_link_libraries(${PROJECT_NAME} PRIVATE

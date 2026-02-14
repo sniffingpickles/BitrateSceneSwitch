@@ -8,6 +8,7 @@
 #include <QTableWidget>
 #include <QPushButton>
 #include <QLabel>
+#include <QTabWidget>
 
 #include "config.hpp"
 
@@ -31,28 +32,49 @@ private slots:
 
 private:
     void setupUI();
+    void setupGeneralTab(QWidget *tab);
+    void setupTriggersTab(QWidget *tab);
+    void setupScenesTab(QWidget *tab);
+    void setupServersTab(QWidget *tab);
+    void setupAdvancedTab(QWidget *tab);
     void loadSettings();
     void saveSettings();
-    void populateSceneComboBox(QComboBox *combo);
+    void populateSceneComboBox(QComboBox *combo, bool allowEmpty = false);
 
     Config *config_;
     Switcher *switcher_;
+
+    QTabWidget *tabWidget_;
 
     // General settings
     QCheckBox *enabledCheckbox_;
     QCheckBox *onlyWhenStreamingCheckbox_;
     QCheckBox *instantRecoverCheckbox_;
+    QCheckBox *autoNotifyCheckbox_;
     QSpinBox *retryAttemptsSpinBox_;
 
     // Trigger settings
     QSpinBox *lowBitrateSpinBox_;
     QSpinBox *rttThresholdSpinBox_;
     QSpinBox *offlineBitrateSpinBox_;
+    QSpinBox *rttOfflineSpinBox_;
 
-    // Scene settings
+    // Main scene settings
     QComboBox *normalSceneCombo_;
     QComboBox *lowSceneCombo_;
     QComboBox *offlineSceneCombo_;
+
+    // Optional scenes
+    QComboBox *startingSceneCombo_;
+    QComboBox *endingSceneCombo_;
+    QComboBox *privacySceneCombo_;
+    QComboBox *refreshSceneCombo_;
+
+    // Optional options
+    QSpinBox *offlineTimeoutSpinBox_;
+    QCheckBox *recordWhileStreamingCheckbox_;
+    QCheckBox *switchToStartingCheckbox_;
+    QCheckBox *switchFromStartingCheckbox_;
 
     // Server list
     QTableWidget *serverTable_;

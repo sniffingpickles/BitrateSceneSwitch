@@ -19,12 +19,11 @@ SettingsDialog::SettingsDialog(Config *config, Switcher *switcher, QWidget *pare
     , switcher_(switcher)
 {
     setWindowTitle("Bitrate Scene Switch Settings");
-    setMinimumSize(600, 500);
+    setMinimumSize(700, 550);
     
     setupUI();
     loadSettings();
 
-    // Status refresh timer
     statusTimer_ = new QTimer(this);
     connect(statusTimer_, &QTimer::timeout, this, &SettingsDialog::refreshStatus);
     statusTimer_->start(1000);
@@ -40,7 +39,7 @@ void SettingsDialog::setupUI()
 {
     QVBoxLayout *mainLayout = new QVBoxLayout(this);
 
-    // Status group
+    // Status bar at top
     QGroupBox *statusGroup = new QGroupBox("Status", this);
     QHBoxLayout *statusLayout = new QHBoxLayout(statusGroup);
     statusLabel_ = new QLabel("Status: Unknown", this);
@@ -50,94 +49,28 @@ void SettingsDialog::setupUI()
     statusLayout->addStretch();
     mainLayout->addWidget(statusGroup);
 
-    // General settings group
-    QGroupBox *generalGroup = new QGroupBox("General Settings", this);
-    QFormLayout *generalLayout = new QFormLayout(generalGroup);
+    // Tab widget for organized settings
+    tabWidget_ = new QTabWidget(this);
     
-    enabledCheckbox_ = new QCheckBox("Enable automatic scene switching", this);
-    onlyWhenStreamingCheckbox_ = new QCheckBox("Only switch when streaming", this);
-    instantRecoverCheckbox_ = new QCheckBox("Instantly switch on bitrate recovery", this);
+    QWidget *generalTab = new QWidget();
+    QWidget *triggersTab = new QWidget();
+    QWidget *scenesTab = new QWidget();
+    QWidget *serversTab = new QWidget();
+    QWidget *advancedTab = new QWidget();
     
-    retryAttemptsSpinBox_ = new QSpinBox(this);
-    retryAttemptsSpinBox_->setRange(1, 30);
-    retryAttemptsSpinBox_->setValue(5);
-    retryAttemptsSpinBox_->setToolTip("Number of checks before switching scenes");
-
-    generalLayout->addRow(enabledCheckbox_);
-    generalLayout->addRow(onlyWhenStreamingCheckbox_);
-    generalLayout->addRow(instantRecoverCheckbox_);
-    generalLayout->addRow("Retry Attempts:", retryAttemptsSpinBox_);
-    mainLayout->addWidget(generalGroup);
-
-    // Trigger settings group
-    QGroupBox *triggerGroup = new QGroupBox("Bitrate Triggers", this);
-    QFormLayout *triggerLayout = new QFormLayout(triggerGroup);
-
-    lowBitrateSpinBox_ = new QSpinBox(this);
-    lowBitrateSpinBox_->setRange(0, 50000);
-    lowBitrateSpinBox_->setValue(800);
-    lowBitrateSpinBox_->setSuffix(" kbps");
-    lowBitrateSpinBox_->setToolTip("Switch to Low scene when bitrate drops below this");
-
-    rttThresholdSpinBox_ = new QSpinBox(this);
-    rttThresholdSpinBox_->setRange(0, 10000);
-    rttThresholdSpinBox_->setValue(2500);
-    rttThresholdSpinBox_->setSuffix(" ms");
-    rttThresholdSpinBox_->setToolTip("Switch to Low scene when RTT exceeds this (SRT only)");
-
-    offlineBitrateSpinBox_ = new QSpinBox(this);
-    offlineBitrateSpinBox_->setRange(0, 10000);
-    offlineBitrateSpinBox_->setValue(0);
-    offlineBitrateSpinBox_->setSuffix(" kbps");
-    offlineBitrateSpinBox_->setToolTip("Switch to Offline scene when bitrate drops below this (0 = use server offline)");
-
-    triggerLayout->addRow("Low Bitrate Threshold:", lowBitrateSpinBox_);
-    triggerLayout->addRow("RTT Threshold:", rttThresholdSpinBox_);
-    triggerLayout->addRow("Offline Threshold:", offlineBitrateSpinBox_);
-    mainLayout->addWidget(triggerGroup);
-
-    // Scene settings group
-    QGroupBox *sceneGroup = new QGroupBox("Scene Assignment", this);
-    QFormLayout *sceneLayout = new QFormLayout(sceneGroup);
-
-    normalSceneCombo_ = new QComboBox(this);
-    lowSceneCombo_ = new QComboBox(this);
-    offlineSceneCombo_ = new QComboBox(this);
-
-    populateSceneComboBox(normalSceneCombo_);
-    populateSceneComboBox(lowSceneCombo_);
-    populateSceneComboBox(offlineSceneCombo_);
-
-    sceneLayout->addRow("Normal Scene:", normalSceneCombo_);
-    sceneLayout->addRow("Low Bitrate Scene:", lowSceneCombo_);
-    sceneLayout->addRow("Offline Scene:", offlineSceneCombo_);
-    mainLayout->addWidget(sceneGroup);
-
-    // Stream servers group
-    QGroupBox *serverGroup = new QGroupBox("Stream Servers", this);
-    QVBoxLayout *serverLayout = new QVBoxLayout(serverGroup);
-
-    serverTable_ = new QTableWidget(0, 4, this);
-    serverTable_->setHorizontalHeaderLabels({"Enabled", "Type", "Name", "Stats URL"});
-    serverTable_->horizontalHeader()->setStretchLastSection(true);
-    serverTable_->setSelectionBehavior(QAbstractItemView::SelectRows);
-    serverTable_->setSelectionMode(QAbstractItemView::SingleSelection);
-    serverLayout->addWidget(serverTable_);
-
-    QHBoxLayout *serverBtnLayout = new QHBoxLayout();
-    addServerBtn_ = new QPushButton("Add Server", this);
-    removeServerBtn_ = new QPushButton("Remove Server", this);
-    testBtn_ = new QPushButton("Test Connection", this);
-    serverBtnLayout->addWidget(addServerBtn_);
-    serverBtnLayout->addWidget(removeServerBtn_);
-    serverBtnLayout->addWidget(testBtn_);
-    serverBtnLayout->addStretch();
-    serverLayout->addLayout(serverBtnLayout);
-    mainLayout->addWidget(serverGroup);
-
-    connect(addServerBtn_, &QPushButton::clicked, this, &SettingsDialog::onAddServer);
-    connect(removeServerBtn_, &QPushButton::clicked, this, &SettingsDialog::onRemoveServer);
-    connect(testBtn_, &QPushButton::clicked, this, &SettingsDialog::onTestConnection);
+    setupGeneralTab(generalTab);
+    setupTriggersTab(triggersTab);
+    setupScenesTab(scenesTab);
+    setupServersTab(serversTab);
+    setupAdvancedTab(advancedTab);
+    
+    tabWidget_->addTab(generalTab, "General");
+    tabWidget_->addTab(triggersTab, "Triggers");
+    tabWidget_->addTab(scenesTab, "Scenes");
+    tabWidget_->addTab(serversTab, "Servers");
+    tabWidget_->addTab(advancedTab, "Advanced");
+    
+    mainLayout->addWidget(tabWidget_);
 
     // Dialog buttons
     QDialogButtonBox *buttonBox = new QDialogButtonBox(
@@ -147,9 +80,177 @@ void SettingsDialog::setupUI()
     mainLayout->addWidget(buttonBox);
 }
 
-void SettingsDialog::populateSceneComboBox(QComboBox *combo)
+void SettingsDialog::setupGeneralTab(QWidget *tab)
+{
+    QVBoxLayout *layout = new QVBoxLayout(tab);
+    
+    QGroupBox *group = new QGroupBox("Switcher Settings", tab);
+    QFormLayout *form = new QFormLayout(group);
+    
+    enabledCheckbox_ = new QCheckBox("Enable automatic scene switching", tab);
+    onlyWhenStreamingCheckbox_ = new QCheckBox("Only switch when streaming", tab);
+    instantRecoverCheckbox_ = new QCheckBox("Instantly switch on bitrate recovery", tab);
+    autoNotifyCheckbox_ = new QCheckBox("Enable auto-switch notifications", tab);
+    
+    retryAttemptsSpinBox_ = new QSpinBox(tab);
+    retryAttemptsSpinBox_->setRange(1, 30);
+    retryAttemptsSpinBox_->setValue(5);
+    retryAttemptsSpinBox_->setToolTip("Number of consecutive checks before switching");
+
+    form->addRow(enabledCheckbox_);
+    form->addRow(onlyWhenStreamingCheckbox_);
+    form->addRow(instantRecoverCheckbox_);
+    form->addRow(autoNotifyCheckbox_);
+    form->addRow("Retry Attempts:", retryAttemptsSpinBox_);
+    
+    layout->addWidget(group);
+    layout->addStretch();
+}
+
+void SettingsDialog::setupTriggersTab(QWidget *tab)
+{
+    QVBoxLayout *layout = new QVBoxLayout(tab);
+    
+    QGroupBox *group = new QGroupBox("Bitrate Triggers", tab);
+    QFormLayout *form = new QFormLayout(group);
+
+    lowBitrateSpinBox_ = new QSpinBox(tab);
+    lowBitrateSpinBox_->setRange(0, 50000);
+    lowBitrateSpinBox_->setValue(800);
+    lowBitrateSpinBox_->setSuffix(" kbps");
+    lowBitrateSpinBox_->setToolTip("Switch to Low scene when bitrate drops below this");
+
+    rttThresholdSpinBox_ = new QSpinBox(tab);
+    rttThresholdSpinBox_->setRange(0, 10000);
+    rttThresholdSpinBox_->setValue(2500);
+    rttThresholdSpinBox_->setSuffix(" ms");
+    rttThresholdSpinBox_->setToolTip("Switch to Low scene when RTT exceeds this (SRT only)");
+
+    offlineBitrateSpinBox_ = new QSpinBox(tab);
+    offlineBitrateSpinBox_->setRange(0, 10000);
+    offlineBitrateSpinBox_->setValue(0);
+    offlineBitrateSpinBox_->setSuffix(" kbps");
+    offlineBitrateSpinBox_->setToolTip("Switch to Offline when bitrate drops below this (0 = server offline)");
+
+    rttOfflineSpinBox_ = new QSpinBox(tab);
+    rttOfflineSpinBox_->setRange(0, 30000);
+    rttOfflineSpinBox_->setValue(0);
+    rttOfflineSpinBox_->setSuffix(" ms");
+    rttOfflineSpinBox_->setToolTip("Switch to Offline when RTT exceeds this (0 = disabled)");
+
+    form->addRow("Low Bitrate Threshold:", lowBitrateSpinBox_);
+    form->addRow("RTT Threshold (Low):", rttThresholdSpinBox_);
+    form->addRow("Offline Bitrate Threshold:", offlineBitrateSpinBox_);
+    form->addRow("RTT Threshold (Offline):", rttOfflineSpinBox_);
+    
+    layout->addWidget(group);
+    layout->addStretch();
+}
+
+void SettingsDialog::setupScenesTab(QWidget *tab)
+{
+    QVBoxLayout *layout = new QVBoxLayout(tab);
+    
+    // Main switching scenes
+    QGroupBox *mainGroup = new QGroupBox("Switching Scenes", tab);
+    QFormLayout *mainForm = new QFormLayout(mainGroup);
+
+    normalSceneCombo_ = new QComboBox(tab);
+    lowSceneCombo_ = new QComboBox(tab);
+    offlineSceneCombo_ = new QComboBox(tab);
+
+    populateSceneComboBox(normalSceneCombo_);
+    populateSceneComboBox(lowSceneCombo_);
+    populateSceneComboBox(offlineSceneCombo_);
+
+    mainForm->addRow("Normal Scene:", normalSceneCombo_);
+    mainForm->addRow("Low Bitrate Scene:", lowSceneCombo_);
+    mainForm->addRow("Offline Scene:", offlineSceneCombo_);
+    layout->addWidget(mainGroup);
+
+    // Optional scenes
+    QGroupBox *optGroup = new QGroupBox("Optional Scenes", tab);
+    QFormLayout *optForm = new QFormLayout(optGroup);
+
+    startingSceneCombo_ = new QComboBox(tab);
+    endingSceneCombo_ = new QComboBox(tab);
+    privacySceneCombo_ = new QComboBox(tab);
+    refreshSceneCombo_ = new QComboBox(tab);
+
+    populateSceneComboBox(startingSceneCombo_, true);
+    populateSceneComboBox(endingSceneCombo_, true);
+    populateSceneComboBox(privacySceneCombo_, true);
+    populateSceneComboBox(refreshSceneCombo_, true);
+
+    optForm->addRow("Starting Scene:", startingSceneCombo_);
+    optForm->addRow("Ending Scene:", endingSceneCombo_);
+    optForm->addRow("Privacy Scene:", privacySceneCombo_);
+    optForm->addRow("Refresh Scene:", refreshSceneCombo_);
+    layout->addWidget(optGroup);
+    
+    layout->addStretch();
+}
+
+void SettingsDialog::setupServersTab(QWidget *tab)
+{
+    QVBoxLayout *layout = new QVBoxLayout(tab);
+
+    serverTable_ = new QTableWidget(0, 5, tab);
+    serverTable_->setHorizontalHeaderLabels({"Enabled", "Type", "Name", "Stats URL", "Priority"});
+    serverTable_->horizontalHeader()->setStretchLastSection(false);
+    serverTable_->horizontalHeader()->setSectionResizeMode(3, QHeaderView::Stretch);
+    serverTable_->setSelectionBehavior(QAbstractItemView::SelectRows);
+    serverTable_->setSelectionMode(QAbstractItemView::SingleSelection);
+    layout->addWidget(serverTable_);
+
+    QHBoxLayout *btnLayout = new QHBoxLayout();
+    addServerBtn_ = new QPushButton("Add Server", tab);
+    removeServerBtn_ = new QPushButton("Remove Server", tab);
+    testBtn_ = new QPushButton("Test Connection", tab);
+    btnLayout->addWidget(addServerBtn_);
+    btnLayout->addWidget(removeServerBtn_);
+    btnLayout->addWidget(testBtn_);
+    btnLayout->addStretch();
+    layout->addLayout(btnLayout);
+
+    connect(addServerBtn_, &QPushButton::clicked, this, &SettingsDialog::onAddServer);
+    connect(removeServerBtn_, &QPushButton::clicked, this, &SettingsDialog::onRemoveServer);
+    connect(testBtn_, &QPushButton::clicked, this, &SettingsDialog::onTestConnection);
+}
+
+void SettingsDialog::setupAdvancedTab(QWidget *tab)
+{
+    QVBoxLayout *layout = new QVBoxLayout(tab);
+    
+    QGroupBox *group = new QGroupBox("Advanced Options", tab);
+    QFormLayout *form = new QFormLayout(group);
+
+    offlineTimeoutSpinBox_ = new QSpinBox(tab);
+    offlineTimeoutSpinBox_->setRange(0, 120);
+    offlineTimeoutSpinBox_->setValue(0);
+    offlineTimeoutSpinBox_->setSuffix(" min");
+    offlineTimeoutSpinBox_->setToolTip("Auto-stop stream after X minutes offline (0 = disabled)");
+
+    recordWhileStreamingCheckbox_ = new QCheckBox("Auto-record while streaming", tab);
+    switchToStartingCheckbox_ = new QCheckBox("Switch to Starting scene on stream start", tab);
+    switchFromStartingCheckbox_ = new QCheckBox("Auto-switch from Starting to Live when feed detected", tab);
+
+    form->addRow("Offline Timeout:", offlineTimeoutSpinBox_);
+    form->addRow(recordWhileStreamingCheckbox_);
+    form->addRow(switchToStartingCheckbox_);
+    form->addRow(switchFromStartingCheckbox_);
+    
+    layout->addWidget(group);
+    layout->addStretch();
+}
+
+void SettingsDialog::populateSceneComboBox(QComboBox *combo, bool allowEmpty)
 {
     combo->clear();
+    
+    if (allowEmpty) {
+        combo->addItem("(None)", "");
+    }
     
     obs_frontend_source_list scenes = {};
     obs_frontend_get_scenes(&scenes);
@@ -158,7 +259,7 @@ void SettingsDialog::populateSceneComboBox(QComboBox *combo)
         obs_source_t *source = scenes.sources.array[i];
         const char *name = obs_source_get_name(source);
         if (name) {
-            combo->addItem(QString::fromUtf8(name));
+            combo->addItem(QString::fromUtf8(name), QString::fromUtf8(name));
         }
     }
     
@@ -170,13 +271,15 @@ void SettingsDialog::loadSettings()
     enabledCheckbox_->setChecked(config_->enabled);
     onlyWhenStreamingCheckbox_->setChecked(config_->onlyWhenStreaming);
     instantRecoverCheckbox_->setChecked(config_->instantRecover);
+    autoNotifyCheckbox_->setChecked(config_->autoNotify);
     retryAttemptsSpinBox_->setValue(config_->retryAttempts);
 
     lowBitrateSpinBox_->setValue(config_->triggers.low);
     rttThresholdSpinBox_->setValue(config_->triggers.rtt);
     offlineBitrateSpinBox_->setValue(config_->triggers.offline);
+    rttOfflineSpinBox_->setValue(config_->triggers.rttOffline);
 
-    // Set scene combos
+    // Main scenes
     int idx = normalSceneCombo_->findText(QString::fromStdString(config_->scenes.normal));
     if (idx >= 0) normalSceneCombo_->setCurrentIndex(idx);
     
@@ -185,6 +288,25 @@ void SettingsDialog::loadSettings()
     
     idx = offlineSceneCombo_->findText(QString::fromStdString(config_->scenes.offline));
     if (idx >= 0) offlineSceneCombo_->setCurrentIndex(idx);
+
+    // Optional scenes
+    idx = startingSceneCombo_->findText(QString::fromStdString(config_->optionalScenes.starting));
+    if (idx >= 0) startingSceneCombo_->setCurrentIndex(idx);
+    
+    idx = endingSceneCombo_->findText(QString::fromStdString(config_->optionalScenes.ending));
+    if (idx >= 0) endingSceneCombo_->setCurrentIndex(idx);
+    
+    idx = privacySceneCombo_->findText(QString::fromStdString(config_->optionalScenes.privacy));
+    if (idx >= 0) privacySceneCombo_->setCurrentIndex(idx);
+    
+    idx = refreshSceneCombo_->findText(QString::fromStdString(config_->optionalScenes.refresh));
+    if (idx >= 0) refreshSceneCombo_->setCurrentIndex(idx);
+
+    // Advanced options
+    offlineTimeoutSpinBox_->setValue(config_->options.offlineTimeoutMinutes);
+    recordWhileStreamingCheckbox_->setChecked(config_->options.recordWhileStreaming);
+    switchToStartingCheckbox_->setChecked(config_->options.switchToStartingOnStreamStart);
+    switchFromStartingCheckbox_->setChecked(config_->options.switchFromStartingToLive);
 
     // Load servers
     serverTable_->setRowCount(0);
@@ -197,12 +319,18 @@ void SettingsDialog::loadSettings()
         serverTable_->setCellWidget(row, 0, enabledCheck);
 
         QComboBox *typeCombo = new QComboBox();
-        typeCombo->addItems({"Belabox", "NGINX", "SRT Live Server", "MediaMTX"});
+        typeCombo->addItems({"BELABOX", "NGINX", "SRT Live Server", "MediaMTX", 
+                            "Node Media Server", "Nimble", "RIST", "OpenIRL", "IRLHosting", "Xiu"});
         typeCombo->setCurrentIndex(static_cast<int>(server.type));
         serverTable_->setCellWidget(row, 1, typeCombo);
 
         serverTable_->setItem(row, 2, new QTableWidgetItem(QString::fromStdString(server.name)));
         serverTable_->setItem(row, 3, new QTableWidgetItem(QString::fromStdString(server.statsUrl)));
+        
+        QSpinBox *prioritySpin = new QSpinBox();
+        prioritySpin->setRange(0, 100);
+        prioritySpin->setValue(server.priority);
+        serverTable_->setCellWidget(row, 4, prioritySpin);
     }
 }
 
@@ -211,15 +339,27 @@ void SettingsDialog::saveSettings()
     config_->enabled = enabledCheckbox_->isChecked();
     config_->onlyWhenStreaming = onlyWhenStreamingCheckbox_->isChecked();
     config_->instantRecover = instantRecoverCheckbox_->isChecked();
+    config_->autoNotify = autoNotifyCheckbox_->isChecked();
     config_->retryAttempts = retryAttemptsSpinBox_->value();
 
     config_->triggers.low = lowBitrateSpinBox_->value();
     config_->triggers.rtt = rttThresholdSpinBox_->value();
     config_->triggers.offline = offlineBitrateSpinBox_->value();
+    config_->triggers.rttOffline = rttOfflineSpinBox_->value();
 
     config_->scenes.normal = normalSceneCombo_->currentText().toStdString();
     config_->scenes.low = lowSceneCombo_->currentText().toStdString();
     config_->scenes.offline = offlineSceneCombo_->currentText().toStdString();
+
+    config_->optionalScenes.starting = startingSceneCombo_->currentData().toString().toStdString();
+    config_->optionalScenes.ending = endingSceneCombo_->currentData().toString().toStdString();
+    config_->optionalScenes.privacy = privacySceneCombo_->currentData().toString().toStdString();
+    config_->optionalScenes.refresh = refreshSceneCombo_->currentData().toString().toStdString();
+
+    config_->options.offlineTimeoutMinutes = offlineTimeoutSpinBox_->value();
+    config_->options.recordWhileStreaming = recordWhileStreamingCheckbox_->isChecked();
+    config_->options.switchToStartingOnStreamStart = switchToStartingCheckbox_->isChecked();
+    config_->options.switchFromStartingToLive = switchFromStartingCheckbox_->isChecked();
 
     // Save servers
     config_->servers.clear();
@@ -238,8 +378,13 @@ void SettingsDialog::saveSettings()
         QTableWidgetItem *urlItem = serverTable_->item(row, 3);
         server.statsUrl = urlItem ? urlItem->text().toStdString() : "";
 
+        QSpinBox *prioritySpin = qobject_cast<QSpinBox*>(serverTable_->cellWidget(row, 4));
+        server.priority = prioritySpin ? prioritySpin->value() : 0;
+
         config_->servers.push_back(server);
     }
+    
+    config_->sortServersByPriority();
 }
 
 void SettingsDialog::onAddServer()
@@ -252,11 +397,17 @@ void SettingsDialog::onAddServer()
     serverTable_->setCellWidget(row, 0, enabledCheck);
 
     QComboBox *typeCombo = new QComboBox();
-    typeCombo->addItems({"Belabox", "NGINX", "SRT Live Server", "MediaMTX"});
+    typeCombo->addItems({"BELABOX", "NGINX", "SRT Live Server", "MediaMTX", 
+                        "Node Media Server", "Nimble", "RIST", "OpenIRL", "IRLHosting", "Xiu"});
     serverTable_->setCellWidget(row, 1, typeCombo);
 
     serverTable_->setItem(row, 2, new QTableWidgetItem("New Server"));
     serverTable_->setItem(row, 3, new QTableWidgetItem("http://"));
+    
+    QSpinBox *prioritySpin = new QSpinBox();
+    prioritySpin->setRange(0, 100);
+    prioritySpin->setValue(0);
+    serverTable_->setCellWidget(row, 4, prioritySpin);
 }
 
 void SettingsDialog::onRemoveServer()
@@ -280,7 +431,7 @@ void SettingsDialog::onTestConnection()
 
     QString url = urlItem->text();
     QMessageBox::information(this, "Test Connection", 
-        QString("Testing connection to:\n%1\n\n(Full test requires plugin restart)").arg(url));
+        QString("Testing connection to:\n%1\n\n(Full test available after saving)").arg(url));
 }
 
 void SettingsDialog::onSave()

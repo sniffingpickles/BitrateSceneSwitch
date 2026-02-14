@@ -4,6 +4,8 @@
 #include "servers/nginx.hpp"
 #include "servers/sls.hpp"
 #include "servers/mediamtx.hpp"
+#include "servers/nms.hpp"
+#include "servers/nimble.hpp"
 #include <obs-module.h>
 
 namespace BitrateSwitch {
@@ -13,6 +15,7 @@ SwitchType StreamServer::evaluateTriggers(const BitrateInfo &info, const Trigger
     if (!info.isOnline || info.bitrateKbps == 0)
         return SwitchType::Offline;
 
+    // Check offline triggers first
     if (triggers.offline > 0 && info.bitrateKbps > 0 && 
         info.bitrateKbps <= static_cast<int64_t>(triggers.offline))
         return SwitchType::Offline;
@@ -20,9 +23,11 @@ SwitchType StreamServer::evaluateTriggers(const BitrateInfo &info, const Trigger
     if (triggers.rttOffline > 0 && info.rttMs >= static_cast<double>(triggers.rttOffline))
         return SwitchType::Offline;
 
+    // Special case: bitrate of 1 means return to previous scene
     if (info.bitrateKbps == 1)
         return SwitchType::Previous;
 
+    // Check low triggers
     if (triggers.low > 0 && info.bitrateKbps <= static_cast<int64_t>(triggers.low))
         return SwitchType::Low;
 
@@ -43,7 +48,19 @@ std::unique_ptr<StreamServer> StreamServer::create(const StreamServerConfig &con
         return std::make_unique<SlsServer>(config);
     case ServerType::Mediamtx:
         return std::make_unique<MediamtxServer>(config);
+    case ServerType::NodeMediaServer:
+        return std::make_unique<NmsServer>(config);
+    case ServerType::Nimble:
+        return std::make_unique<NimbleServer>(config);
+    case ServerType::Rist:
+    case ServerType::OpenIRL:
+    case ServerType::IrlHosting:
+    case ServerType::Xiu:
+        // These use similar stats format to Belabox/SLS
+        return std::make_unique<BelaboxServer>(config);
     default:
+        blog(LOG_WARNING, "[BitrateSceneSwitch] Unknown server type %d, using Belabox", 
+             static_cast<int>(config.type));
         return std::make_unique<BelaboxServer>(config);
     }
 }
