@@ -81,10 +81,9 @@ struct OptionalOptions {
     bool switchFromStartingToLive = false;     // Auto-switch from starting to live when feed detected
 };
 
-// Chat platform types
+// Chat platform type
 enum class ChatPlatform {
-    Twitch = 0,
-    Kick
+    Twitch = 0
 };
 
 // Chat configuration for bot commands

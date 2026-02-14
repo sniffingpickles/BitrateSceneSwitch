@@ -39,8 +39,8 @@ bool ChatClient::connect()
         return false;
     }
     
-    const char* host = (config_.platform == ChatPlatform::Twitch) ? TWITCH_IRC_HOST : KICK_IRC_HOST;
-    int port = (config_.platform == ChatPlatform::Twitch) ? TWITCH_IRC_PORT : KICK_IRC_PORT;
+    const char* host = TWITCH_IRC_HOST;
+    int port = TWITCH_IRC_PORT;
     
     struct addrinfo hints{}, *result;
     hints.ai_family = AF_INET;
@@ -80,8 +80,7 @@ bool ChatClient::connect()
     running_ = true;
     receiveThread_ = std::thread(&ChatClient::receiveLoop, this);
     
-    blog(LOG_INFO, "[BitrateSceneSwitch] Chat: Connected to %s channel #%s", 
-         config_.platform == ChatPlatform::Twitch ? "Twitch" : "Kick", config_.channel.c_str());
+    blog(LOG_INFO, "[BitrateSceneSwitch] Chat: Connected to Twitch channel #%s", config_.channel.c_str());
     
     return true;
 }
