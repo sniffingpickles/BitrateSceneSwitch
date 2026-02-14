@@ -35,14 +35,6 @@ jobs:
           arch: 'win64_msvc2019_64'
           cache: true
 
-      - name: Setup vcpkg
-        uses: lukka/run-vcpkg@v11
-        with:
-          vcpkgGitCommitId: 'a34c873a9717a888f58dc05268dea15592c2f0ff'
-
-      - name: Install CURL via vcpkg
-        run: vcpkg install curl:x64-windows
-
       - name: Clone OBS Studio
         shell: pwsh
         run: |
@@ -54,15 +46,19 @@ jobs:
       - name: Download OBS deps
         shell: pwsh
         run: |
-          # Use latest available deps
+          # Download OBS deps (includes curl)
           $depsUrl = "https://github.com/obsproject/obs-deps/releases/download/2024-03-12/windows-deps-2024-03-12-x64.zip"
           Invoke-WebRequest -Uri $depsUrl -OutFile deps.zip
           Expand-Archive deps.zip -DestinationPath obs-deps
           
-          # Also get Qt deps
-          $qtDepsUrl = "https://github.com/obsproject/obs-deps/releases/download/2024-03-12/windows-deps-qt6-2024-03-12-x64.zip"
-          Invoke-WebRequest -Uri $qtDepsUrl -OutFile qt-deps.zip
-          Expand-Archive qt-deps.zip -DestinationPath obs-deps -Force
+      - name: Download pre-built CURL
+        shell: pwsh
+        run: |
+          # Download curl from official Windows builds
+          $curlUrl = "https://curl.se/windows/dl-8.6.0_1/curl-8.6.0_1-win64-mingw.zip"
+          Invoke-WebRequest -Uri $curlUrl -OutFile curl.zip
+          Expand-Archive curl.zip -DestinationPath curl-download
+          Move-Item curl-download/curl-* curl
 
       - name: Build OBS Libraries
         shell: pwsh
@@ -83,12 +79,14 @@ jobs:
         shell: pwsh
         run: |
           $obsDir = "${{ github.workspace }}/obs-studio"
+          $curlDir = "${{ github.workspace }}/curl"
           cmake -B build -S . -G "Visual Studio 17 2022" -A x64 `
             -DCMAKE_BUILD_TYPE=Release `
-            -DCMAKE_PREFIX_PATH="${{ env.Qt6_DIR }};${{ github.workspace }}/obs-deps;C:/vcpkg/installed/x64-windows" `
+            -DCMAKE_PREFIX_PATH="${{ env.Qt6_DIR }};${{ github.workspace }}/obs-deps" `
             -Dlibobs_DIR="$obsDir/build/libobs" `
             -Dobs-frontend-api_DIR="$obsDir/build/UI/obs-frontend-api" `
-            -DCURL_ROOT="C:/vcpkg/installed/x64-windows"
+            -DCURL_INCLUDE_DIR="$curlDir/include" `
+            -DCURL_LIBRARY="$curlDir/lib/libcurl.dll.a"
 
       - name: Build Plugin
         run: cmake --build build --config Release
@@ -99,7 +97,7 @@ jobs:
           New-Item -ItemType Directory -Force -Path "release/obs-plugins/64bit"
           New-Item -ItemType Directory -Force -Path "release/data/obs-plugins/${{ env.PLUGIN_NAME }}"
           
-          # Copy DLL
+          # Copy plugin DLL
           $dllPath = "build/Release/${{ env.PLUGIN_NAME }}.dll"
           if (Test-Path $dllPath) {
             Copy-Item $dllPath "release/obs-plugins/64bit/"
@@ -107,6 +105,9 @@ jobs:
             Write-Host "DLL not found at $dllPath, searching..."
             Get-ChildItem -Path build -Recurse -Filter "*.dll" | ForEach-Object { Write-Host $_.FullName }
           }
+          
+          # Copy curl DLL
+          Copy-Item "curl/bin/libcurl-x64.dll" "release/obs-plugins/64bit/"
           
           # Copy data files
           if (Test-Path "data") {
