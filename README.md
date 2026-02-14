@@ -10,7 +10,7 @@
 
 ---
 
-## ✨ Features
+## Features
 
 - **Automatic Scene Switching** - Switch scenes based on bitrate thresholds
 - **Multiple Server Support** - Works with BELABOX, NGINX, SLS, MediaMTX, and more
@@ -21,7 +21,7 @@
 
 ---
 
-## 📸 Screenshots
+## Screenshots
 
 <p align="center">
   <img src="images/screenshot-settings.svg" alt="Settings Dialog" width="80%">
@@ -33,7 +33,7 @@
 
 ---
 
-## 📦 Installation
+## Installation
 
 ### Windows
 
@@ -45,7 +45,7 @@
 
 ---
 
-## 🚀 Usage
+## Usage
 
 1. Open OBS Studio
 2. Go to **Tools** → **Bitrate Scene Switch**
@@ -54,7 +54,7 @@
 
 ---
 
-## 💬 Chat Commands
+## Chat Commands
 
 Control the switcher via Twitch chat (requires setup in Chat tab):
 
@@ -70,7 +70,7 @@ Control the switcher via Twitch chat (requires setup in Chat tab):
 
 ---
 
-## 🖥️ Supported Servers
+## Supported Servers
 
 | Server | Stats URL Example |
 |--------|-------------------|
@@ -84,7 +84,7 @@ Control the switcher via Twitch chat (requires setup in Chat tab):
 
 ---
 
-## 🔧 Building
+## Building
 
 ```bash
 cmake -B build -S .
@@ -93,7 +93,7 @@ cmake --build build --config Release
 
 ---
 
-## 📄 License
+## License
 
 GPL-2.0
 
