@@ -28,11 +28,8 @@
 <img src="images/header-screenshots.svg" alt="Screenshots" width="100%">
 
 <p align="center">
-  <img src="images/screenshot-settings.svg" alt="Settings Dialog" width="80%">
-</p>
-
-<p align="center">
-  <img src="images/screenshot-servers.svg" alt="Server Configuration" width="80%">
+  <img src="images/screenshot-general.png" alt="General Settings" width="45%">
+  <img src="images/screenshot-chat.png" alt="Chat Settings" width="45%">
 </p>
 
 ---
