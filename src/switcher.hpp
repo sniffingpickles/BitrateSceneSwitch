@@ -88,10 +88,12 @@ private:
     uint8_t sameTypeCount_ = 0;
     std::chrono::steady_clock::time_point sameTypeStart_;
     std::chrono::steady_clock::time_point offlineStart_;
+    std::chrono::steady_clock::time_point streamStartTime_;
     
     std::string currentScene_;
     std::string prevScene_;
     std::string lastActiveServerName_;
+    std::string lastUsedServerName_;  // Track which server was last used (for override scenes when offline)
     bool wasOnStartingScene_ = false;
 
     BitrateInfo lastBitrateInfo_;

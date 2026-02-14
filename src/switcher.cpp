@@ -60,6 +60,7 @@ void Switcher::onStreamingStarted()
     isStreaming_ = true;
     sameTypeStart_ = std::chrono::steady_clock::now();
     offlineStart_ = std::chrono::steady_clock::now();
+    streamStartTime_ = std::chrono::steady_clock::now();
     blog(LOG_INFO, "[BitrateSceneSwitch] Streaming started");
 
     // Handle optional: switch to starting scene on stream start
@@ -155,9 +156,18 @@ void Switcher::doSwitchCheck()
         }
     }
 
+    // Instant recover: force switch when coming back from offline
     bool forceSwitch = config_->instantRecover &&
                        prevSwitchType_ == SwitchType::Offline &&
                        currentSwitchType != SwitchType::Offline;
+
+    // NOALBS: If server changed while we have a Previous type, force switch to Normal
+    if (currentSwitchType == SwitchType::Previous && activeServer) {
+        if (!lastUsedServerName_.empty() && lastUsedServerName_ != activeServer->getName()) {
+            currentSwitchType = SwitchType::Normal;
+            forceSwitch = true;
+        }
+    }
 
     if (prevSwitchType_ == currentSwitchType) {
         sameTypeCount_++;
@@ -175,21 +185,58 @@ void Switcher::doSwitchCheck()
     if (sameTypeCount_ < config_->retryAttempts && !forceSwitch)
         return;
 
+    // NOALBS: Avoid triggering offline timeout when stream just started
+    // Grace period = retry_attempts + 5 seconds
+    if (!config_->onlyWhenStreaming) {
+        auto streamElapsed = std::chrono::steady_clock::now() - streamStartTime_;
+        auto gracePeriod = std::chrono::seconds(config_->retryAttempts + 5);
+        if (streamElapsed <= gracePeriod) {
+            sameTypeStart_ = std::chrono::steady_clock::now();
+        }
+    }
+
     sameTypeCount_ = 0;
 
     // Handle offline timeout
     handleOfflineTimeout();
 
+    // NOALBS: When offline, use last used server for override scenes
+    StreamServer* serverForScenes = activeServer;
+    if (currentSwitchType == SwitchType::Offline && !lastUsedServerName_.empty()) {
+        // Find the last used server for its override scenes
+        for (auto& server : servers_) {
+            if (server->getName() == lastUsedServerName_) {
+                serverForScenes = server.get();
+                break;
+            }
+        }
+    }
+
     std::string targetScene;
     if (currentSwitchType == SwitchType::Previous) {
         targetScene = prevScene_;
     } else {
-        targetScene = getSceneForType(currentSwitchType, activeServer);
+        targetScene = getSceneForType(currentSwitchType, serverForScenes);
     }
 
+    // NOALBS: Track previous scene and last used server
     if (currentSwitchType == SwitchType::Normal || 
         currentSwitchType == SwitchType::Low) {
         prevScene_ = targetScene;
+    }
+    
+    if (currentSwitchType != SwitchType::Offline && activeServer) {
+        lastUsedServerName_ = activeServer->getName();
+    }
+
+    // NOALBS: Skip switching to offline if on starting scene with auto-switch enabled
+    std::string currentScene = getCurrentScene();
+    if (!config_->optionalScenes.starting.empty() &&
+        currentScene == config_->optionalScenes.starting &&
+        config_->options.switchFromStartingToLive &&
+        currentSwitchType == SwitchType::Offline) {
+        // Don't switch to offline when on starting scene - wait for signal
+        return;
     }
 
     switchToScene(targetScene);
