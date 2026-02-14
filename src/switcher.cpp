@@ -326,7 +326,7 @@ std::string Switcher::getCurrentScene()
     return name;
 }
 
-// Manual scene command methods (from NOALBS chat commands)
+// Manual scene switching methods
 void Switcher::switchToLive()
 {
     switchToScene(config_->scenes.normal);

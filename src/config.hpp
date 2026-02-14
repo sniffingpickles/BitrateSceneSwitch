@@ -7,7 +7,7 @@
 
 namespace BitrateSwitch {
 
-// All supported server types from NOALBS
+// Supported stream server types
 enum class ServerType {
     Belabox = 0,
     Nginx,
@@ -34,7 +34,7 @@ struct SwitchingScenes {
     std::string offline = "Offline";
 };
 
-// Optional scenes from NOALBS
+// Optional scenes for stream lifecycle
 struct OptionalScenes {
     std::string starting;         // Scene to switch to when stream starts
     std::string ending;           // Scene to switch to when stream ends
@@ -73,7 +73,7 @@ struct StreamServerConfig {
     DependsOn dependsOn;
 };
 
-// Optional options from NOALBS
+// Additional switcher options
 struct OptionalOptions {
     uint32_t offlineTimeoutMinutes = 0;       // Auto-stop after X minutes offline (0 = disabled)
     bool recordWhileStreaming = false;         // Auto-record when streaming

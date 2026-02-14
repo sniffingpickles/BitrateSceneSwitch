@@ -40,7 +40,7 @@ public:
     std::string getStatusString();
     SwitchType getCurrentSwitchType() const { return prevSwitchType_; }
 
-    // Manual scene commands (from NOALBS chat commands)
+    // Manual scene switching commands
     void switchToLive();
     void switchToPrivacy();
     void switchToStarting();

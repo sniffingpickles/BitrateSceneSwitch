@@ -69,7 +69,7 @@ elseif(APPLE)
     set_target_properties(${PROJECT_NAME} PROPERTIES
         BUNDLE TRUE
         BUNDLE_EXTENSION "plugin"
-        MACOSX_BUNDLE_GUI_IDENTIFIER "com.noalbs.bitrate-scene-switch"
+        MACOSX_BUNDLE_GUI_IDENTIFIER "com.obsproject.bitrate-scene-switch"
         MACOSX_BUNDLE_BUNDLE_NAME "${PROJECT_NAME}"
         MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}"
     )
