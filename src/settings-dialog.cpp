@@ -195,10 +195,11 @@ void SettingsDialog::setupServersTab(QWidget *tab)
 {
     QVBoxLayout *layout = new QVBoxLayout(tab);
 
-    serverTable_ = new QTableWidget(0, 5, tab);
-    serverTable_->setHorizontalHeaderLabels({"Enabled", "Type", "Name", "Stats URL", "Priority"});
+    serverTable_ = new QTableWidget(0, 6, tab);
+    serverTable_->setHorizontalHeaderLabels({"Enabled", "Type", "Name", "Stats URL", "Stream Key", "Priority"});
     serverTable_->horizontalHeader()->setStretchLastSection(false);
     serverTable_->horizontalHeader()->setSectionResizeMode(3, QHeaderView::Stretch);
+    serverTable_->horizontalHeader()->setSectionResizeMode(4, QHeaderView::ResizeToContents);
     serverTable_->setSelectionBehavior(QAbstractItemView::SelectRows);
     serverTable_->setSelectionMode(QAbstractItemView::SingleSelection);
     layout->addWidget(serverTable_);
@@ -326,11 +327,12 @@ void SettingsDialog::loadSettings()
 
         serverTable_->setItem(row, 2, new QTableWidgetItem(QString::fromStdString(server.name)));
         serverTable_->setItem(row, 3, new QTableWidgetItem(QString::fromStdString(server.statsUrl)));
+        serverTable_->setItem(row, 4, new QTableWidgetItem(QString::fromStdString(server.key)));
         
         QSpinBox *prioritySpin = new QSpinBox();
         prioritySpin->setRange(0, 100);
         prioritySpin->setValue(server.priority);
-        serverTable_->setCellWidget(row, 4, prioritySpin);
+        serverTable_->setCellWidget(row, 5, prioritySpin);
     }
 }
 
@@ -378,7 +380,10 @@ void SettingsDialog::saveSettings()
         QTableWidgetItem *urlItem = serverTable_->item(row, 3);
         server.statsUrl = urlItem ? urlItem->text().toStdString() : "";
 
-        QSpinBox *prioritySpin = qobject_cast<QSpinBox*>(serverTable_->cellWidget(row, 4));
+        QTableWidgetItem *keyItem = serverTable_->item(row, 4);
+        server.key = keyItem ? keyItem->text().toStdString() : "";
+
+        QSpinBox *prioritySpin = qobject_cast<QSpinBox*>(serverTable_->cellWidget(row, 5));
         server.priority = prioritySpin ? prioritySpin->value() : 0;
 
         config_->servers.push_back(server);
@@ -403,11 +408,12 @@ void SettingsDialog::onAddServer()
 
     serverTable_->setItem(row, 2, new QTableWidgetItem("New Server"));
     serverTable_->setItem(row, 3, new QTableWidgetItem("http://"));
+    serverTable_->setItem(row, 4, new QTableWidgetItem(""));
     
     QSpinBox *prioritySpin = new QSpinBox();
     prioritySpin->setRange(0, 100);
     prioritySpin->setValue(0);
-    serverTable_->setCellWidget(row, 4, prioritySpin);
+    serverTable_->setCellWidget(row, 5, prioritySpin);
 }
 
 void SettingsDialog::onRemoveServer()
