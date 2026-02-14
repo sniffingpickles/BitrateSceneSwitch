@@ -204,6 +204,8 @@ ChatCommand ChatClient::parseCommand(const std::string& message, std::string& ar
     if (checkCmd(config_.cmdTrigger, ChatCommand::Trigger)) return ChatCommand::Trigger;
     if (checkCmd(config_.cmdFix, ChatCommand::Fix)) return ChatCommand::Fix;
     if (checkCmd(config_.cmdSwitchScene, ChatCommand::SwitchScene)) return ChatCommand::SwitchScene;
+    if (checkCmd(config_.cmdStart, ChatCommand::Start)) return ChatCommand::Start;
+    if (checkCmd(config_.cmdStop, ChatCommand::Stop)) return ChatCommand::Stop;
     
     return ChatCommand::None;
 }

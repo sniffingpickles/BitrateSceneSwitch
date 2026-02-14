@@ -634,6 +634,32 @@ void Switcher::handleChatCommand(const ChatMessage& msg)
             }
         }
         break;
+    case ChatCommand::Start:
+        if (!isStreaming_) {
+            obs_frontend_streaming_start();
+            if (chatClient_) {
+                chatClient_->sendMessage("Starting stream...");
+            }
+            blog(LOG_INFO, "[BitrateSceneSwitch] Stream started via chat command");
+        } else {
+            if (chatClient_) {
+                chatClient_->sendMessage("Stream is already running");
+            }
+        }
+        break;
+    case ChatCommand::Stop:
+        if (isStreaming_) {
+            obs_frontend_streaming_stop();
+            if (chatClient_) {
+                chatClient_->sendMessage("Stopping stream...");
+            }
+            blog(LOG_INFO, "[BitrateSceneSwitch] Stream stopped via chat command");
+        } else {
+            if (chatClient_) {
+                chatClient_->sendMessage("Stream is not running");
+            }
+        }
+        break;
     default:
         break;
     }

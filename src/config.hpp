@@ -105,6 +105,8 @@ struct ChatConfig {
     std::string cmdTrigger = "!trigger";
     std::string cmdFix = "!fix";
     std::string cmdSwitchScene = "!ss";            // !ss <scene_name> - switch to any scene
+    std::string cmdStart = "!start";              // Start streaming
+    std::string cmdStop = "!stop";                // Stop streaming
 };
 
 class Config {

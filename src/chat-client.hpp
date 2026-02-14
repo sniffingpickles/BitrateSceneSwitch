@@ -34,7 +34,9 @@ enum class ChatCommand {
     Status,
     Trigger,
     Fix,
-    SwitchScene  // !ss <scene_name>
+    SwitchScene,  // !ss <scene_name>
+    Start,        // Start streaming
+    Stop          // Stop streaming
 };
 
 struct ChatMessage {

@@ -66,8 +66,11 @@ Control the switcher via Twitch chat (requires setup in Chat tab):
 | `!brb` | Switch to BRB/Offline scene |
 | `!ss <name>` | Switch to any scene (case-insensitive) |
 | `!refresh` | Refresh scene (fix issues) |
+| `!fix` | Refresh media sources |
 | `!status` | Show current bitrate status |
 | `!trigger` | Force switch check |
+| `!start` | Start streaming |
+| `!stop` | Stop streaming |
 
 ---
 
