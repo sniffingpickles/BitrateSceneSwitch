@@ -257,10 +257,10 @@ void SettingsDialog::setupChatTab(QWidget *tab)
     QFormLayout *connForm = new QFormLayout(connGroup);
     
     chatEnabledCheckbox_ = new QCheckBox("Enable chat integration", tab);
-    chatEnabledCheckbox_->setToolTip("Connect to Twitch/Kick chat for bot commands");
+    chatEnabledCheckbox_->setToolTip("Connect to Twitch chat for bot commands");
     
     chatPlatformCombo_ = new QComboBox(tab);
-    chatPlatformCombo_->addItems({"Twitch", "Kick"});
+    chatPlatformCombo_->addItems({"Twitch"});
     
     chatChannelEdit_ = new QLineEdit(tab);
     chatChannelEdit_->setPlaceholderText("your_channel_name");

@@ -78,8 +78,6 @@ private:
     
     static constexpr const char* TWITCH_IRC_HOST = "irc.chat.twitch.tv";
     static constexpr int TWITCH_IRC_PORT = 6667;
-    static constexpr const char* KICK_IRC_HOST = "irc.kick.com";
-    static constexpr int KICK_IRC_PORT = 6667;
 };
 
 } // namespace BitrateSwitch
