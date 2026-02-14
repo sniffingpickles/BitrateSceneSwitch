@@ -1,7 +1,7 @@
 /*
  * Bitrate Scene Switch - OBS Plugin
  * Automatic scene switching based on stream server bitrate
- * Based on NOALBS (https://github.com/NOALBS)
+ * Automatic bitrate-based scene switching for OBS Studio
  */
 
 #include <obs-module.h>
@@ -24,7 +24,7 @@ const char *obs_module_name(void)
 
 const char *obs_module_description(void)
 {
-    return "Automatic scene switching based on stream server bitrate (NOALBS-style)";
+    return "Automatic scene switching based on stream server bitrate";
 }
 
 static void frontend_event_callback(enum obs_frontend_event event, void *data)
