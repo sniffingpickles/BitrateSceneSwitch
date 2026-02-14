@@ -11,6 +11,7 @@
 
 #include "config.hpp"
 #include "stream-server.hpp"
+#include "chat-client.hpp"
 
 namespace BitrateSwitch {
 
@@ -42,10 +43,18 @@ public:
 
     // Manual scene switching commands
     void switchToLive();
+    void switchToLow();
+    void switchToBrb();
     void switchToPrivacy();
     void switchToStarting();
     void switchToEnding();
     void refreshScene();
+    void triggerSwitch();
+    
+    // Chat integration
+    void connectChat();
+    void disconnectChat();
+    bool isChatConnected() const;
 
 private:
     void switcherThread();
@@ -60,8 +69,11 @@ private:
     
     void handleStartingScene();
     void handleOfflineTimeout();
+    void handleChatCommand(const ChatMessage& msg);
+    void announceSceneChange(SwitchType type);
 
     Config *config_;
+    std::unique_ptr<ChatClient> chatClient_;
     std::vector<std::unique_ptr<StreamServer>> servers_;
     
     std::thread switcherThread_;

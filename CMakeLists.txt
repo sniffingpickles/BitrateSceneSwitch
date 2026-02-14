@@ -45,6 +45,8 @@ add_library(${PROJECT_NAME} MODULE
     src/servers/nms.hpp
     src/servers/nimble.cpp
     src/servers/nimble.hpp
+    src/chat-client.cpp
+    src/chat-client.hpp
 )
 
 target_link_libraries(${PROJECT_NAME} PRIVATE

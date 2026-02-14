@@ -81,6 +81,32 @@ struct OptionalOptions {
     bool switchFromStartingToLive = false;     // Auto-switch from starting to live when feed detected
 };
 
+// Chat platform types
+enum class ChatPlatform {
+    Twitch = 0,
+    Kick
+};
+
+// Chat configuration for bot commands
+struct ChatConfig {
+    bool enabled = false;
+    ChatPlatform platform = ChatPlatform::Twitch;
+    std::string channel;                      // Channel to connect to (without #)
+    std::string botUsername;                  // Bot username for login
+    std::string oauthToken;                   // OAuth token (oauth:xxx for Twitch)
+    std::vector<std::string> admins;          // Users allowed to use commands
+    bool announceSceneChanges = true;         // Announce scene switches in chat
+    
+    // Command prefixes (customizable)
+    std::string cmdLive = "!live";
+    std::string cmdLow = "!low";
+    std::string cmdBrb = "!brb";
+    std::string cmdRefresh = "!refresh";
+    std::string cmdStatus = "!status";
+    std::string cmdTrigger = "!trigger";
+    std::string cmdFix = "!fix";
+};
+
 class Config {
 public:
     Config();
@@ -101,6 +127,7 @@ public:
     SwitchingScenes scenes;
     OptionalScenes optionalScenes;
     OptionalOptions options;
+    ChatConfig chat;
     std::vector<StreamServerConfig> servers;
 
 private:

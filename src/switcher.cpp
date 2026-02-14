@@ -364,10 +364,130 @@ void Switcher::refreshScene()
         std::string current = getCurrentScene();
         switchToScene(config_->optionalScenes.refresh);
         blog(LOG_INFO, "[BitrateSceneSwitch] Refresh: switching to refresh scene");
-        
-        // Schedule switch back after a short delay (handled externally or via timer)
-        // For now, just log - full implementation would need a timer
     }
+}
+
+void Switcher::switchToLow()
+{
+    switchToScene(config_->scenes.low);
+    blog(LOG_INFO, "[BitrateSceneSwitch] Manual switch to Low scene");
+}
+
+void Switcher::switchToBrb()
+{
+    switchToScene(config_->scenes.offline);
+    blog(LOG_INFO, "[BitrateSceneSwitch] Manual switch to BRB/Offline scene");
+}
+
+void Switcher::triggerSwitch()
+{
+    doSwitchCheck();
+    blog(LOG_INFO, "[BitrateSceneSwitch] Manual trigger of switch check");
+}
+
+void Switcher::connectChat()
+{
+    if (!config_->chat.enabled) return;
+    
+    if (!chatClient_) {
+        chatClient_ = std::make_unique<ChatClient>();
+        chatClient_->setCommandCallback([this](const ChatMessage& msg) {
+            handleChatCommand(msg);
+        });
+    }
+    
+    chatClient_->setConfig(config_->chat);
+    if (chatClient_->connect()) {
+        blog(LOG_INFO, "[BitrateSceneSwitch] Chat connected");
+    }
+}
+
+void Switcher::disconnectChat()
+{
+    if (chatClient_) {
+        chatClient_->disconnect();
+        blog(LOG_INFO, "[BitrateSceneSwitch] Chat disconnected");
+    }
+}
+
+bool Switcher::isChatConnected() const
+{
+    return chatClient_ && chatClient_->isConnected();
+}
+
+void Switcher::handleChatCommand(const ChatMessage& msg)
+{
+    blog(LOG_INFO, "[BitrateSceneSwitch] Chat command from %s: %s", 
+         msg.username.c_str(), msg.message.c_str());
+    
+    switch (msg.command) {
+    case ChatCommand::Live:
+        switchToLive();
+        if (config_->chat.announceSceneChanges && chatClient_) {
+            chatClient_->sendMessage("Switched to Live scene");
+        }
+        break;
+    case ChatCommand::Low:
+        switchToLow();
+        if (config_->chat.announceSceneChanges && chatClient_) {
+            chatClient_->sendMessage("Switched to Low scene");
+        }
+        break;
+    case ChatCommand::Brb:
+        switchToBrb();
+        if (config_->chat.announceSceneChanges && chatClient_) {
+            chatClient_->sendMessage("Switched to BRB scene");
+        }
+        break;
+    case ChatCommand::Refresh:
+        refreshScene();
+        if (config_->chat.announceSceneChanges && chatClient_) {
+            chatClient_->sendMessage("Refreshing scene...");
+        }
+        break;
+    case ChatCommand::Status:
+        if (chatClient_) {
+            chatClient_->sendMessage(getStatusString());
+        }
+        break;
+    case ChatCommand::Trigger:
+        triggerSwitch();
+        if (config_->chat.announceSceneChanges && chatClient_) {
+            chatClient_->sendMessage("Triggered switch check");
+        }
+        break;
+    case ChatCommand::Fix:
+        refreshScene();
+        if (config_->chat.announceSceneChanges && chatClient_) {
+            chatClient_->sendMessage("Attempting to fix stream...");
+        }
+        break;
+    default:
+        break;
+    }
+}
+
+void Switcher::announceSceneChange(SwitchType type)
+{
+    if (!config_->chat.announceSceneChanges || !chatClient_ || !chatClient_->isConnected())
+        return;
+    
+    std::string msg;
+    switch (type) {
+    case SwitchType::Normal:
+        msg = "Switched to Live scene (bitrate recovered)";
+        break;
+    case SwitchType::Low:
+        msg = "Switched to Low scene (low bitrate detected)";
+        break;
+    case SwitchType::Offline:
+        msg = "Switched to Offline scene";
+        break;
+    default:
+        return;
+    }
+    
+    chatClient_->sendMessage(msg);
 }
 
 BitrateInfo Switcher::getCurrentBitrate()

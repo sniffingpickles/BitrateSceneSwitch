@@ -139,6 +139,34 @@ obs_data_t *Config::save()
     obs_data_set_array(data, "servers", serversArray);
     obs_data_array_release(serversArray);
 
+    // Chat configuration
+    obs_data_set_bool(data, "chat_enabled", chat.enabled);
+    obs_data_set_int(data, "chat_platform", static_cast<int>(chat.platform));
+    obs_data_set_string(data, "chat_channel", chat.channel.c_str());
+    obs_data_set_string(data, "chat_bot_username", chat.botUsername.c_str());
+    obs_data_set_string(data, "chat_oauth_token", chat.oauthToken.c_str());
+    obs_data_set_bool(data, "chat_announce", chat.announceSceneChanges);
+    
+    // Chat admins
+    obs_data_array_t *adminsArray = obs_data_array_create();
+    for (const auto &admin : chat.admins) {
+        obs_data_t *adminData = obs_data_create();
+        obs_data_set_string(adminData, "name", admin.c_str());
+        obs_data_array_push_back(adminsArray, adminData);
+        obs_data_release(adminData);
+    }
+    obs_data_set_array(data, "chat_admins", adminsArray);
+    obs_data_array_release(adminsArray);
+    
+    // Chat commands
+    obs_data_set_string(data, "chat_cmd_live", chat.cmdLive.c_str());
+    obs_data_set_string(data, "chat_cmd_low", chat.cmdLow.c_str());
+    obs_data_set_string(data, "chat_cmd_brb", chat.cmdBrb.c_str());
+    obs_data_set_string(data, "chat_cmd_refresh", chat.cmdRefresh.c_str());
+    obs_data_set_string(data, "chat_cmd_status", chat.cmdStatus.c_str());
+    obs_data_set_string(data, "chat_cmd_trigger", chat.cmdTrigger.c_str());
+    obs_data_set_string(data, "chat_cmd_fix", chat.cmdFix.c_str());
+
     return data;
 }
 
@@ -226,6 +254,49 @@ void Config::load(obs_data_t *data)
     }
 
     sortServersByPriority();
+
+    // Chat configuration
+    chat.enabled = obs_data_get_bool(data, "chat_enabled");
+    chat.platform = static_cast<ChatPlatform>(obs_data_get_int(data, "chat_platform"));
+    const char *chatChannel = obs_data_get_string(data, "chat_channel");
+    const char *chatBot = obs_data_get_string(data, "chat_bot_username");
+    const char *chatOauth = obs_data_get_string(data, "chat_oauth_token");
+    if (chatChannel) chat.channel = chatChannel;
+    if (chatBot) chat.botUsername = chatBot;
+    if (chatOauth) chat.oauthToken = chatOauth;
+    chat.announceSceneChanges = obs_data_get_bool(data, "chat_announce");
+    
+    // Chat admins
+    chat.admins.clear();
+    obs_data_array_t *adminsArray = obs_data_get_array(data, "chat_admins");
+    if (adminsArray) {
+        size_t adminCount = obs_data_array_count(adminsArray);
+        for (size_t i = 0; i < adminCount; i++) {
+            obs_data_t *adminData = obs_data_array_item(adminsArray, i);
+            const char *adminName = obs_data_get_string(adminData, "name");
+            if (adminName && *adminName) {
+                chat.admins.push_back(adminName);
+            }
+            obs_data_release(adminData);
+        }
+        obs_data_array_release(adminsArray);
+    }
+    
+    // Chat commands
+    const char *cmdLive = obs_data_get_string(data, "chat_cmd_live");
+    const char *cmdLow = obs_data_get_string(data, "chat_cmd_low");
+    const char *cmdBrb = obs_data_get_string(data, "chat_cmd_brb");
+    const char *cmdRefresh = obs_data_get_string(data, "chat_cmd_refresh");
+    const char *cmdStatus = obs_data_get_string(data, "chat_cmd_status");
+    const char *cmdTrigger = obs_data_get_string(data, "chat_cmd_trigger");
+    const char *cmdFix = obs_data_get_string(data, "chat_cmd_fix");
+    if (cmdLive && *cmdLive) chat.cmdLive = cmdLive;
+    if (cmdLow && *cmdLow) chat.cmdLow = cmdLow;
+    if (cmdBrb && *cmdBrb) chat.cmdBrb = cmdBrb;
+    if (cmdRefresh && *cmdRefresh) chat.cmdRefresh = cmdRefresh;
+    if (cmdStatus && *cmdStatus) chat.cmdStatus = cmdStatus;
+    if (cmdTrigger && *cmdTrigger) chat.cmdTrigger = cmdTrigger;
+    if (cmdFix && *cmdFix) chat.cmdFix = cmdFix;
 }
 
 } // namespace BitrateSwitch
