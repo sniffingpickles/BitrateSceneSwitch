@@ -8,6 +8,10 @@
   <a href="https://github.com/sniffingpickles/BitrateSceneSwitch/blob/main/LICENSE"><img src="https://img.shields.io/github/license/sniffingpickles/BitrateSceneSwitch?style=flat-square" alt="License"></a>
 </p>
 
+<p align="center">
+  <i>This plugin was heavily inspired by <a href="https://github.com/NOALBS/nginx-obs-automatic-low-bitrate-switching">NOALBS</a>. Huge thanks to the NOALBS team for their amazing work!</i>
+</p>
+
 ---
 
 <img src="images/header-features.svg" alt="Features" width="100%">
