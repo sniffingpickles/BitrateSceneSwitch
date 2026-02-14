@@ -6,82 +6,15 @@ on:
     tags: ['*']
   pull_request:
     branches: [main, master]
+  workflow_dispatch:
 
 env:
   PLUGIN_NAME: BitrateSceneSwitch
+  OBS_VERSION: "31.0.0"
 
 jobs:
   build-windows:
-    name: Build for Windows
-    runs-on: windows-latest
-    
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-
-      - name: Setup MSVC
-        uses: ilammy/msvc-dev-cmd@v1
-
-      - name: Install Qt
-        uses: jurplel/install-qt-action@v3
-        with:
-          version: '6.6.1'
-          host: 'windows'
-          target: 'desktop'
-          arch: 'win64_msvc2019_64'
-          modules: 'qtwebsockets'
-
-      - name: Download OBS Studio
-        run: |
-          $obsVersion = "31.0.0"
-          $obsUrl = "https://github.com/obsproject/obs-studio/releases/download/$obsVersion/OBS-Studio-$obsVersion-Windows.zip"
-          Invoke-WebRequest -Uri $obsUrl -OutFile obs-studio.zip
-          Expand-Archive obs-studio.zip -DestinationPath obs-studio-install
-
-      - name: Download OBS Libraries
-        run: |
-          $obsVersion = "31.0.0"
-          $libsUrl = "https://github.com/obsproject/obs-studio/releases/download/$obsVersion/OBS-Studio-$obsVersion-Windows-PDBs.zip"
-          Invoke-WebRequest -Uri $libsUrl -OutFile obs-libs.zip -ErrorAction SilentlyContinue
-          
-      - name: Clone OBS Studio Source
-        run: |
-          git clone --depth 1 --branch 31.0.0 https://github.com/obsproject/obs-studio.git obs-src
-
-      - name: Install CURL
-        run: |
-          vcpkg install curl:x64-windows
-
-      - name: Configure CMake
-        run: |
-          cmake -B build -S . `
-            -DCMAKE_BUILD_TYPE=Release `
-            -DCMAKE_PREFIX_PATH="${{ env.Qt6_DIR }}" `
-            -DQt6_DIR="${{ env.Qt6_DIR }}/lib/cmake/Qt6" `
-            -Dlibobs_DIR="obs-src/libobs" `
-            -Dobs-frontend-api_DIR="obs-src/UI/obs-frontend-api" `
-            -DCURL_ROOT="C:/vcpkg/installed/x64-windows"
-
-      - name: Build
-        run: cmake --build build --config Release
-
-      - name: Package
-        run: |
-          mkdir -p package/obs-plugins/64bit
-          mkdir -p package/data/obs-plugins/${{ env.PLUGIN_NAME }}
-          cp build/Release/${{ env.PLUGIN_NAME }}.dll package/obs-plugins/64bit/
-          cp -r data/* package/data/obs-plugins/${{ env.PLUGIN_NAME }}/
-
-      - name: Upload Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ env.PLUGIN_NAME }}-windows
-          path: package/
-
-  build-windows-simple:
-    name: Build Windows (Simple)
+    name: Build for Windows x64
     runs-on: windows-latest
     
     steps:
@@ -90,46 +23,72 @@ jobs:
 
       - name: Setup MSVC
         uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
 
-      - name: Install Dependencies
-        run: |
-          choco install cmake --installargs 'ADD_CMAKE_TO_PATH=System'
-          
       - name: Install Qt
         uses: jurplel/install-qt-action@v3
         with:
-          version: '6.6.1'
+          version: '6.7.2'
           host: 'windows'
           target: 'desktop'
           arch: 'win64_msvc2019_64'
+          cache: true
 
-      - name: Download OBS Dependencies
+      - name: Setup vcpkg
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgGitCommitId: 'a34c873a9717a888f58dc05268dea15592c2f0ff'
+
+      - name: Install CURL via vcpkg
+        run: vcpkg install curl:x64-windows
+
+      - name: Clone OBS Studio
         shell: pwsh
         run: |
-          # Download pre-built OBS deps
-          $depsUrl = "https://github.com/obsproject/obs-deps/releases/download/2024-08-01/windows-deps-2024-08-01-x64.zip"
+          git clone --depth 1 --branch ${{ env.OBS_VERSION }} https://github.com/obsproject/obs-studio.git obs-studio
+          cd obs-studio
+          git submodule update --init --recursive --depth 1
+          cd ..
+
+      - name: Download OBS deps
+        shell: pwsh
+        run: |
+          # Use latest available deps
+          $depsUrl = "https://github.com/obsproject/obs-deps/releases/download/2024-03-12/windows-deps-2024-03-12-x64.zip"
           Invoke-WebRequest -Uri $depsUrl -OutFile deps.zip
-          Expand-Archive deps.zip -DestinationPath deps
+          Expand-Archive deps.zip -DestinationPath obs-deps
           
-          # Download OBS Studio source for headers
-          git clone --depth 1 --branch 31.0.0 https://github.com/obsproject/obs-studio.git obs-studio
-          
+          # Also get Qt deps
+          $qtDepsUrl = "https://github.com/obsproject/obs-deps/releases/download/2024-03-12/windows-deps-qt6-2024-03-12-x64.zip"
+          Invoke-WebRequest -Uri $qtDepsUrl -OutFile qt-deps.zip
+          Expand-Archive qt-deps.zip -DestinationPath obs-deps -Force
+
       - name: Build OBS Libraries
         shell: pwsh
         run: |
           cd obs-studio
-          cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -DENABLE_BROWSER=OFF -DENABLE_SCRIPTING=OFF -DENABLE_UI=OFF
-          cmake --build build --config Release --target libobs obs-frontend-api
+          cmake -B build -S . -G "Visual Studio 17 2022" -A x64 `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DENABLE_BROWSER=OFF `
+            -DENABLE_SCRIPTING=OFF `
+            -DENABLE_UI=ON `
+            -DENABLE_PLUGINS=OFF `
+            -DENABLE_VIRTUALCAM=OFF `
+            -DCMAKE_PREFIX_PATH="${{ github.workspace }}/obs-deps"
+          cmake --build build --config Release --target libobs obs-frontend-api -- /m
           cd ..
 
       - name: Configure Plugin
         shell: pwsh
         run: |
-          cmake -B build -S . `
+          $obsDir = "${{ github.workspace }}/obs-studio"
+          cmake -B build -S . -G "Visual Studio 17 2022" -A x64 `
             -DCMAKE_BUILD_TYPE=Release `
-            -DCMAKE_PREFIX_PATH="${{ env.Qt6_DIR }};deps" `
-            -Dlibobs_DIR="obs-studio/build/libobs" `
-            -Dobs-frontend-api_DIR="obs-studio/build/UI/obs-frontend-api"
+            -DCMAKE_PREFIX_PATH="${{ env.Qt6_DIR }};${{ github.workspace }}/obs-deps;C:/vcpkg/installed/x64-windows" `
+            -Dlibobs_DIR="$obsDir/build/libobs" `
+            -Dobs-frontend-api_DIR="$obsDir/build/UI/obs-frontend-api" `
+            -DCURL_ROOT="C:/vcpkg/installed/x64-windows"
 
       - name: Build Plugin
         run: cmake --build build --config Release
@@ -139,8 +98,20 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force -Path "release/obs-plugins/64bit"
           New-Item -ItemType Directory -Force -Path "release/data/obs-plugins/${{ env.PLUGIN_NAME }}"
-          Copy-Item "build/Release/${{ env.PLUGIN_NAME }}.dll" "release/obs-plugins/64bit/"
-          Copy-Item -Recurse "data/*" "release/data/obs-plugins/${{ env.PLUGIN_NAME }}/"
+          
+          # Copy DLL
+          $dllPath = "build/Release/${{ env.PLUGIN_NAME }}.dll"
+          if (Test-Path $dllPath) {
+            Copy-Item $dllPath "release/obs-plugins/64bit/"
+          } else {
+            Write-Host "DLL not found at $dllPath, searching..."
+            Get-ChildItem -Path build -Recurse -Filter "*.dll" | ForEach-Object { Write-Host $_.FullName }
+          }
+          
+          # Copy data files
+          if (Test-Path "data") {
+            Copy-Item -Recurse "data/*" "release/data/obs-plugins/${{ env.PLUGIN_NAME }}/"
+          }
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
@@ -150,7 +121,7 @@ jobs:
 
   release:
     name: Create Release
-    needs: [build-windows-simple]
+    needs: [build-windows]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
     
