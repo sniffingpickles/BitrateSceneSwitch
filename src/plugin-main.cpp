@@ -41,6 +41,12 @@ static void frontend_event_callback(enum obs_frontend_event event, void *data)
     case OBS_FRONTEND_EVENT_STREAMING_STOPPED:
         g_switcher->onStreamingStopped();
         break;
+    case OBS_FRONTEND_EVENT_RECORDING_STARTED:
+        g_switcher->onRecordingStarted();
+        break;
+    case OBS_FRONTEND_EVENT_RECORDING_STOPPED:
+        g_switcher->onRecordingStopped();
+        break;
     case OBS_FRONTEND_EVENT_SCENE_CHANGED:
         g_switcher->onSceneChanged();
         break;
