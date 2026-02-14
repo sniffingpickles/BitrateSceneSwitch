@@ -385,6 +385,41 @@ void Switcher::triggerSwitch()
     blog(LOG_INFO, "[BitrateSceneSwitch] Manual trigger of switch check");
 }
 
+bool Switcher::switchToSceneByName(const std::string& name)
+{
+    // Get all scenes and find one matching case-insensitively
+    obs_frontend_source_list scenes = {};
+    obs_frontend_get_scenes(&scenes);
+    
+    std::string nameLower = name;
+    std::transform(nameLower.begin(), nameLower.end(), nameLower.begin(), ::tolower);
+    
+    std::string foundScene;
+    for (size_t i = 0; i < scenes.sources.num; i++) {
+        obs_source_t *source = scenes.sources.array[i];
+        const char *sceneName = obs_source_get_name(source);
+        if (sceneName) {
+            std::string sceneNameLower = sceneName;
+            std::transform(sceneNameLower.begin(), sceneNameLower.end(), sceneNameLower.begin(), ::tolower);
+            if (sceneNameLower == nameLower) {
+                foundScene = sceneName;
+                break;
+            }
+        }
+    }
+    
+    obs_frontend_source_list_free(&scenes);
+    
+    if (!foundScene.empty()) {
+        switchToScene(foundScene);
+        blog(LOG_INFO, "[BitrateSceneSwitch] Manual switch to scene: %s", foundScene.c_str());
+        return true;
+    }
+    
+    blog(LOG_WARNING, "[BitrateSceneSwitch] Scene not found: %s", name.c_str());
+    return false;
+}
+
 void Switcher::connectChat()
 {
     if (!config_->chat.enabled) return;
@@ -460,6 +495,23 @@ void Switcher::handleChatCommand(const ChatMessage& msg)
         refreshScene();
         if (config_->chat.announceSceneChanges && chatClient_) {
             chatClient_->sendMessage("Attempting to fix stream...");
+        }
+        break;
+    case ChatCommand::SwitchScene:
+        if (!msg.args.empty()) {
+            if (switchToSceneByName(msg.args)) {
+                if (config_->chat.announceSceneChanges && chatClient_) {
+                    chatClient_->sendMessage("Switched to scene: " + msg.args);
+                }
+            } else {
+                if (chatClient_) {
+                    chatClient_->sendMessage("Scene not found: " + msg.args);
+                }
+            }
+        } else {
+            if (chatClient_) {
+                chatClient_->sendMessage("Usage: !ss <scene_name>");
+            }
         }
         break;
     default:

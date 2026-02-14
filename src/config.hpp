@@ -104,6 +104,7 @@ struct ChatConfig {
     std::string cmdStatus = "!status";
     std::string cmdTrigger = "!trigger";
     std::string cmdFix = "!fix";
+    std::string cmdSwitchScene = "!ss";            // !ss <scene_name> - switch to any scene
 };
 
 class Config {
