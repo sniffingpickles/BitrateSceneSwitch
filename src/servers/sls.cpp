@@ -57,7 +57,7 @@ namespace BitrateSwitch {
 SlsServer::SlsServer(const StreamServerConfig &config)
 {
     statsUrl_ = config.statsUrl;
-    publisher_ = config.publisher;
+    publisher_ = config.key;  // Stream key from UI maps to publisher in JSON
     name_ = config.name;
 }
 

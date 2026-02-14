@@ -58,7 +58,7 @@ namespace BitrateSwitch {
 BelaboxServer::BelaboxServer(const StreamServerConfig &config)
 {
     statsUrl_ = config.statsUrl;
-    publisher_ = config.publisher;
+    publisher_ = config.key;
     name_ = config.name;
 }
 
