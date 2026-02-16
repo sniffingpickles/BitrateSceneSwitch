@@ -411,9 +411,19 @@ void SettingsDialog::setupServersTab(QWidget *tab)
 
     serverTable_ = new QTableWidget(0, 6, content);
     serverTable_->setHorizontalHeaderLabels({"Enabled", "Type", "Name", "Stats URL", "Stream Key", "Priority"});
+    serverTable_->verticalHeader()->setVisible(false);
     serverTable_->horizontalHeader()->setStretchLastSection(false);
+    serverTable_->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Fixed);
+    serverTable_->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Fixed);
+    serverTable_->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Interactive);
     serverTable_->horizontalHeader()->setSectionResizeMode(3, QHeaderView::Stretch);
-    serverTable_->horizontalHeader()->setSectionResizeMode(4, QHeaderView::ResizeToContents);
+    serverTable_->horizontalHeader()->setSectionResizeMode(4, QHeaderView::Interactive);
+    serverTable_->horizontalHeader()->setSectionResizeMode(5, QHeaderView::Fixed);
+    serverTable_->setColumnWidth(0, 60);
+    serverTable_->setColumnWidth(1, 110);
+    serverTable_->setColumnWidth(2, 100);
+    serverTable_->setColumnWidth(4, 120);
+    serverTable_->setColumnWidth(5, 60);
     serverTable_->setSelectionBehavior(QAbstractItemView::SelectRows);
     serverTable_->setSelectionMode(QAbstractItemView::SingleSelection);
     layout->addWidget(serverTable_);
@@ -625,8 +635,12 @@ void SettingsDialog::setupMessagesTab(QWidget *tab)
     
     customCmdTable_ = new QTableWidget(0, 3, scrollContent);
     customCmdTable_->setHorizontalHeaderLabels({"Enabled", "Trigger", "Response"});
+    customCmdTable_->verticalHeader()->setVisible(false);
+    customCmdTable_->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Fixed);
+    customCmdTable_->setColumnWidth(0, 60);
+    customCmdTable_->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Interactive);
+    customCmdTable_->setColumnWidth(1, 120);
     customCmdTable_->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Stretch);
-    customCmdTable_->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
     customCmdTable_->setSelectionBehavior(QAbstractItemView::SelectRows);
     customCmdTable_->setSelectionMode(QAbstractItemView::SingleSelection);
     customCmdTable_->setMinimumHeight(120);
