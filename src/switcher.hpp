@@ -38,7 +38,10 @@ public:
     void onRecordingStopped();
 
     BitrateInfo getCurrentBitrate();
+    BitrateInfo getLastBitrateInfo() const { return lastBitrateInfo_; }
     std::string getStatusString();
+    std::string getCurrentScene();
+    bool isCurrentlyStreaming() const { return isStreaming_; }
     SwitchType getCurrentSwitchType() const { return prevSwitchType_; }
 
     // Manual scene switching commands
@@ -67,12 +70,13 @@ private:
     std::string getSceneForType(SwitchType type, StreamServer* server = nullptr);
     
     bool isSceneSwitchable(const std::string &scene);
-    std::string getCurrentScene();
     
     void handleStartingScene();
     void handleOfflineTimeout();
     void handleChatCommand(const ChatMessage& msg);
+    void handleCustomCommands(const ChatMessage& msg);
     void announceSceneChange(SwitchType type);
+    std::string formatTemplate(const std::string &tmpl, const std::string &sceneOverride = "");
 
     Config *config_;
     std::unique_ptr<ChatClient> chatClient_;
@@ -92,7 +96,6 @@ private:
     
     std::string currentScene_;
     std::string prevScene_;
-    std::string lastActiveServerName_;
     std::string lastUsedServerName_;  // Track which server was last used (for override scenes when offline)
     bool wasOnStartingScene_ = false;
 

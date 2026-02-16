@@ -19,7 +19,136 @@ SettingsDialog::SettingsDialog(Config *config, Switcher *switcher, QWidget *pare
     , switcher_(switcher)
 {
     setWindowTitle("Bitrate Scene Switch Settings");
-    setMinimumSize(700, 550);
+    setMinimumSize(750, 600);
+    
+    // Modern dark stylesheet with color accents
+    setStyleSheet(
+        "QDialog {"
+        "  background-color: #1e1e2e;"
+        "  color: #cdd6f4;"
+        "}"
+        "QTabWidget::pane {"
+        "  border: 1px solid #313244;"
+        "  background-color: #1e1e2e;"
+        "  border-radius: 6px;"
+        "}"
+        "QTabBar::tab {"
+        "  background-color: #313244;"
+        "  color: #a6adc8;"
+        "  padding: 8px 18px;"
+        "  margin-right: 2px;"
+        "  border-top-left-radius: 6px;"
+        "  border-top-right-radius: 6px;"
+        "  font-weight: bold;"
+        "}"
+        "QTabBar::tab:selected {"
+        "  background-color: #45475a;"
+        "  color: #89b4fa;"
+        "}"
+        "QTabBar::tab:hover {"
+        "  background-color: #45475a;"
+        "}"
+        "QGroupBox {"
+        "  background-color: #181825;"
+        "  border: 1px solid #313244;"
+        "  border-radius: 8px;"
+        "  margin-top: 14px;"
+        "  padding-top: 14px;"
+        "  font-weight: bold;"
+        "  color: #cdd6f4;"
+        "}"
+        "QGroupBox::title {"
+        "  subcontrol-origin: margin;"
+        "  left: 12px;"
+        "  padding: 0 6px;"
+        "  color: #89b4fa;"
+        "  font-size: 13px;"
+        "}"
+        "QLabel {"
+        "  color: #bac2de;"
+        "}"
+        "QCheckBox {"
+        "  color: #cdd6f4;"
+        "  spacing: 8px;"
+        "}"
+        "QCheckBox::indicator {"
+        "  width: 18px;"
+        "  height: 18px;"
+        "  border-radius: 4px;"
+        "  border: 2px solid #585b70;"
+        "  background-color: #313244;"
+        "}"
+        "QCheckBox::indicator:checked {"
+        "  background-color: #a6e3a1;"
+        "  border-color: #a6e3a1;"
+        "}"
+        "QSpinBox, QComboBox, QLineEdit {"
+        "  background-color: #313244;"
+        "  color: #cdd6f4;"
+        "  border: 1px solid #45475a;"
+        "  border-radius: 6px;"
+        "  padding: 6px 10px;"
+        "  min-height: 24px;"
+        "  selection-background-color: #89b4fa;"
+        "}"
+        "QSpinBox:focus, QComboBox:focus, QLineEdit:focus {"
+        "  border-color: #89b4fa;"
+        "}"
+        "QComboBox::drop-down {"
+        "  border: none;"
+        "  padding-right: 8px;"
+        "}"
+        "QComboBox QAbstractItemView {"
+        "  background-color: #313244;"
+        "  color: #cdd6f4;"
+        "  selection-background-color: #45475a;"
+        "  border: 1px solid #45475a;"
+        "}"
+        "QPushButton {"
+        "  background-color: #45475a;"
+        "  color: #cdd6f4;"
+        "  border: 1px solid #585b70;"
+        "  border-radius: 6px;"
+        "  padding: 8px 20px;"
+        "  font-weight: bold;"
+        "  min-height: 20px;"
+        "}"
+        "QPushButton:hover {"
+        "  background-color: #585b70;"
+        "  border-color: #89b4fa;"
+        "}"
+        "QPushButton:pressed {"
+        "  background-color: #313244;"
+        "}"
+        "QTableWidget {"
+        "  background-color: #181825;"
+        "  color: #cdd6f4;"
+        "  gridline-color: #313244;"
+        "  border: 1px solid #313244;"
+        "  border-radius: 6px;"
+        "  selection-background-color: #45475a;"
+        "}"
+        "QTableWidget::item {"
+        "  padding: 4px;"
+        "}"
+        "QHeaderView::section {"
+        "  background-color: #313244;"
+        "  color: #89b4fa;"
+        "  border: 1px solid #45475a;"
+        "  padding: 6px;"
+        "  font-weight: bold;"
+        "}"
+        "QScrollBar:vertical {"
+        "  background-color: #1e1e2e;"
+        "  width: 10px;"
+        "  border-radius: 5px;"
+        "}"
+        "QScrollBar::handle:vertical {"
+        "  background-color: #45475a;"
+        "  border-radius: 5px;"
+        "  min-height: 20px;"
+        "}"
+    );
     
     setupUI();
     loadSettings();
@@ -41,9 +170,15 @@ void SettingsDialog::setupUI()
 
     // Status bar at top
     QGroupBox *statusGroup = new QGroupBox("Status", this);
+    statusGroup->setStyleSheet(
+        "QGroupBox { background-color: #11111b; border: 1px solid #313244; }"
+        "QGroupBox::title { color: #f9e2af; }"
+    );
     QHBoxLayout *statusLayout = new QHBoxLayout(statusGroup);
     statusLabel_ = new QLabel("Status: Unknown", this);
+    statusLabel_->setStyleSheet("color: #a6e3a1; font-weight: bold; font-size: 13px;");
     bitrateLabel_ = new QLabel("Bitrate: --", this);
+    bitrateLabel_->setStyleSheet("color: #89dceb; font-weight: bold; font-size: 13px;");
     statusLayout->addWidget(statusLabel_);
     statusLayout->addWidget(bitrateLabel_);
     statusLayout->addStretch();
@@ -58,6 +193,7 @@ void SettingsDialog::setupUI()
     QWidget *serversTab = new QWidget();
     QWidget *advancedTab = new QWidget();
     QWidget *chatTab = new QWidget();
+    QWidget *messagesTab = new QWidget();
     
     setupGeneralTab(generalTab);
     setupTriggersTab(triggersTab);
@@ -65,33 +201,75 @@ void SettingsDialog::setupUI()
     setupServersTab(serversTab);
     setupAdvancedTab(advancedTab);
     setupChatTab(chatTab);
+    setupMessagesTab(messagesTab);
     
     tabWidget_->addTab(generalTab, "General");
     tabWidget_->addTab(triggersTab, "Triggers");
     tabWidget_->addTab(scenesTab, "Scenes");
     tabWidget_->addTab(serversTab, "Servers");
     tabWidget_->addTab(chatTab, "Chat");
+    tabWidget_->addTab(messagesTab, "Messages");
     tabWidget_->addTab(advancedTab, "Advanced");
     
     mainLayout->addWidget(tabWidget_);
 
-    // Dialog buttons
-    QDialogButtonBox *buttonBox = new QDialogButtonBox(
-        QDialogButtonBox::Save | QDialogButtonBox::Cancel, this);
-    connect(buttonBox, &QDialogButtonBox::accepted, this, &SettingsDialog::onSave);
-    connect(buttonBox, &QDialogButtonBox::rejected, this, &QDialog::reject);
-    mainLayout->addWidget(buttonBox);
+    // Dialog buttons - custom styled
+    QHBoxLayout *btnLayout = new QHBoxLayout();
+    btnLayout->addStretch();
+    
+    QPushButton *saveBtn = new QPushButton("Save", this);
+    saveBtn->setStyleSheet(
+        "QPushButton { background-color: #a6e3a1; color: #1e1e2e; border: none; padding: 10px 30px; font-size: 14px; }"
+        "QPushButton:hover { background-color: #94e2d5; }"
+        "QPushButton:pressed { background-color: #74c7ec; }"
+    );
+    connect(saveBtn, &QPushButton::clicked, this, &SettingsDialog::onSave);
+    
+    QPushButton *cancelBtn = new QPushButton("Cancel", this);
+    cancelBtn->setStyleSheet(
+        "QPushButton { background-color: #f38ba8; color: #1e1e2e; border: none; padding: 10px 30px; font-size: 14px; }"
+        "QPushButton:hover { background-color: #eba0ac; }"
+        "QPushButton:pressed { background-color: #f2cdcd; }"
+    );
+    connect(cancelBtn, &QPushButton::clicked, this, &QDialog::reject);
+    
+    btnLayout->addWidget(saveBtn);
+    btnLayout->addWidget(cancelBtn);
+    mainLayout->addLayout(btnLayout);
+
+    // Update notification (hidden by default)
+    updateLabel_ = new QLabel(this);
+    updateLabel_->setStyleSheet(
+        "QLabel { background-color: #f9e2af; color: #1e1e2e; padding: 10px; border-radius: 6px; font-weight: bold; }");
+    updateLabel_->setOpenExternalLinks(true);
+    updateLabel_->setAlignment(Qt::AlignCenter);
+    updateLabel_->setVisible(false);
+    mainLayout->addWidget(updateLabel_);
 
     // Branding footer
     QLabel *brandingLabel = new QLabel(this);
     brandingLabel->setText(
-        "<div style='text-align: center; color: #888;'>"
-        "Bitrate Scene Switch v1.0.0 | Powered by "
-        "<a href='https://irlhosting.com' style='color: #6441a5;'>IRLHosting.com</a>"
-        "</div>");
+        QString("<div style='text-align: center; color: #585b70;'>"
+        "Bitrate Scene Switch v%1 | Powered by "
+        "<a href='https://irlhosting.com' style='color: #cba6f7;'>IRLHosting.com</a>"
+        "</div>").arg(UpdateChecker::getCurrentVersion()));
     brandingLabel->setOpenExternalLinks(true);
     brandingLabel->setAlignment(Qt::AlignCenter);
     mainLayout->addWidget(brandingLabel);
+    
+    // Check for updates
+    updateChecker_.checkForUpdates([this](const UpdateInfo& info) {
+        if (info.hasUpdate) {
+            QMetaObject::invokeMethod(this, [this, info]() {
+                updateLabel_->setText(
+                    QString("Update available: v%1 \u2192 v%2  |  "
+                    "<a href='https://github.com/sniffingpickles/BitrateSceneSwitch/releases/latest' "
+                    "style='color: #1e1e2e; text-decoration: underline;'>Download Now</a>")
+                    .arg(info.currentVersion.c_str()).arg(info.latestVersion.c_str()));
+                updateLabel_->setVisible(true);
+            }, Qt::QueuedConnection);
+        }
+    });
 }
 
 void SettingsDialog::setupGeneralTab(QWidget *tab)
@@ -219,9 +397,21 @@ void SettingsDialog::setupServersTab(QWidget *tab)
     layout->addWidget(serverTable_);
 
     QHBoxLayout *btnLayout = new QHBoxLayout();
-    addServerBtn_ = new QPushButton("Add Server", tab);
-    removeServerBtn_ = new QPushButton("Remove Server", tab);
+    addServerBtn_ = new QPushButton("+ Add Server", tab);
+    addServerBtn_->setStyleSheet(
+        "QPushButton { background-color: #a6e3a1; color: #1e1e2e; border: none; padding: 8px 18px; }"
+        "QPushButton:hover { background-color: #94e2d5; }"
+    );
+    removeServerBtn_ = new QPushButton("Remove", tab);
+    removeServerBtn_->setStyleSheet(
+        "QPushButton { background-color: #f38ba8; color: #1e1e2e; border: none; padding: 8px 18px; }"
+        "QPushButton:hover { background-color: #eba0ac; }"
+    );
     testBtn_ = new QPushButton("Test Connection", tab);
+    testBtn_->setStyleSheet(
+        "QPushButton { background-color: #89b4fa; color: #1e1e2e; border: none; padding: 8px 18px; }"
+        "QPushButton:hover { background-color: #74c7ec; }"
+    );
     btnLayout->addWidget(addServerBtn_);
     btnLayout->addWidget(removeServerBtn_);
     btnLayout->addWidget(testBtn_);
@@ -323,6 +513,115 @@ void SettingsDialog::setupChatTab(QWidget *tab)
     
     layout->addWidget(cmdGroup);
     layout->addStretch();
+}
+
+void SettingsDialog::setupMessagesTab(QWidget *tab)
+{
+    QVBoxLayout *layout = new QVBoxLayout(tab);
+    
+    // Placeholder reference
+    QGroupBox *refGroup = new QGroupBox("Available Placeholders", tab);
+    QVBoxLayout *refLayout = new QVBoxLayout(refGroup);
+    QLabel *refLabel = new QLabel(
+        "<span style='color: #89b4fa;'>{bitrate}</span> - Current bitrate (kbps)&nbsp;&nbsp;"
+        "<span style='color: #89b4fa;'>{rtt}</span> - Round-trip time (ms)&nbsp;&nbsp;"
+        "<span style='color: #89b4fa;'>{scene}</span> - Current scene&nbsp;&nbsp;"
+        "<span style='color: #89b4fa;'>{prev_scene}</span> - Previous scene<br>"
+        "<span style='color: #89b4fa;'>{server}</span> - Active server name&nbsp;&nbsp;"
+        "<span style='color: #89b4fa;'>{status}</span> - Online/Offline&nbsp;&nbsp;"
+        "<span style='color: #89b4fa;'>{uptime}</span> - Stream state", tab);
+    refLabel->setWordWrap(true);
+    refLabel->setStyleSheet("QLabel { color: #a6adc8; font-size: 11px; padding: 4px; }");
+    refLayout->addWidget(refLabel);
+    layout->addWidget(refGroup);
+
+    // Auto-switch message templates
+    QGroupBox *autoGroup = new QGroupBox("Auto-Switch Messages", tab);
+    QFormLayout *autoForm = new QFormLayout(autoGroup);
+    
+    msgSwitchedLiveEdit_ = new QLineEdit(tab);
+    msgSwitchedLiveEdit_->setToolTip("Message sent when auto-switching to Live scene");
+    msgSwitchedLowEdit_ = new QLineEdit(tab);
+    msgSwitchedLowEdit_->setToolTip("Message sent when auto-switching to Low scene");
+    msgSwitchedOfflineEdit_ = new QLineEdit(tab);
+    msgSwitchedOfflineEdit_->setToolTip("Message sent when auto-switching to Offline scene");
+    
+    autoForm->addRow("Switched to Live:", msgSwitchedLiveEdit_);
+    autoForm->addRow("Switched to Low:", msgSwitchedLowEdit_);
+    autoForm->addRow("Switched to Offline:", msgSwitchedOfflineEdit_);
+    layout->addWidget(autoGroup);
+    
+    // Command response templates
+    QGroupBox *cmdGroup = new QGroupBox("Command Response Messages", tab);
+    QFormLayout *cmdForm = new QFormLayout(cmdGroup);
+    
+    msgStatusEdit_ = new QLineEdit(tab);
+    msgStatusEdit_->setToolTip("Response for !status when online");
+    msgStatusOfflineEdit_ = new QLineEdit(tab);
+    msgStatusOfflineEdit_->setToolTip("Response for !status when offline");
+    msgRefreshingEdit_ = new QLineEdit(tab);
+    msgFixEdit_ = new QLineEdit(tab);
+    msgStreamStartedEdit_ = new QLineEdit(tab);
+    msgStreamStoppedEdit_ = new QLineEdit(tab);
+    msgSceneSwitchedEdit_ = new QLineEdit(tab);
+    msgSceneSwitchedEdit_->setToolTip("Used for !live, !low, !brb, !ss commands");
+    
+    cmdForm->addRow("Status (online):", msgStatusEdit_);
+    cmdForm->addRow("Status (offline):", msgStatusOfflineEdit_);
+    cmdForm->addRow("Refreshing:", msgRefreshingEdit_);
+    cmdForm->addRow("Fix attempt:", msgFixEdit_);
+    cmdForm->addRow("Stream started:", msgStreamStartedEdit_);
+    cmdForm->addRow("Stream stopped:", msgStreamStoppedEdit_);
+    cmdForm->addRow("Scene switched:", msgSceneSwitchedEdit_);
+    layout->addWidget(cmdGroup);
+    
+    // Custom commands
+    QGroupBox *customGroup = new QGroupBox("Custom Commands", tab);
+    QVBoxLayout *customLayout = new QVBoxLayout(customGroup);
+    
+    QLabel *customHint = new QLabel(
+        "Define custom chat commands. The response supports all placeholders above.", tab);
+    customHint->setStyleSheet("QLabel { color: #a6adc8; font-size: 11px; }");
+    customLayout->addWidget(customHint);
+    
+    customCmdTable_ = new QTableWidget(0, 3, tab);
+    customCmdTable_->setHorizontalHeaderLabels({"Enabled", "Trigger", "Response"});
+    customCmdTable_->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Stretch);
+    customCmdTable_->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
+    customCmdTable_->setSelectionBehavior(QAbstractItemView::SelectRows);
+    customCmdTable_->setSelectionMode(QAbstractItemView::SingleSelection);
+    customLayout->addWidget(customCmdTable_);
+    
+    QHBoxLayout *customBtnLayout = new QHBoxLayout();
+    addCustomCmdBtn_ = new QPushButton("+ Add Command", tab);
+    addCustomCmdBtn_->setStyleSheet(
+        "QPushButton { background-color: #a6e3a1; color: #1e1e2e; border: none; padding: 6px 14px; }"
+        "QPushButton:hover { background-color: #94e2d5; }");
+    removeCustomCmdBtn_ = new QPushButton("Remove", tab);
+    removeCustomCmdBtn_->setStyleSheet(
+        "QPushButton { background-color: #f38ba8; color: #1e1e2e; border: none; padding: 6px 14px; }"
+        "QPushButton:hover { background-color: #eba0ac; }");
+    customBtnLayout->addWidget(addCustomCmdBtn_);
+    customBtnLayout->addWidget(removeCustomCmdBtn_);
+    customBtnLayout->addStretch();
+    customLayout->addLayout(customBtnLayout);
+    
+    connect(addCustomCmdBtn_, &QPushButton::clicked, this, [this]() {
+        int row = customCmdTable_->rowCount();
+        customCmdTable_->insertRow(row);
+        QCheckBox *enabledCheck = new QCheckBox();
+        enabledCheck->setChecked(true);
+        customCmdTable_->setCellWidget(row, 0, enabledCheck);
+        customCmdTable_->setItem(row, 1, new QTableWidgetItem("!mycommand"));
+        customCmdTable_->setItem(row, 2, new QTableWidgetItem("Bitrate: {bitrate} kbps | RTT: {rtt} ms"));
+    });
+    
+    connect(removeCustomCmdBtn_, &QPushButton::clicked, this, [this]() {
+        int row = customCmdTable_->currentRow();
+        if (row >= 0) customCmdTable_->removeRow(row);
+    });
+    
+    layout->addWidget(customGroup);
 }
 
 void SettingsDialog::populateSceneComboBox(QComboBox *combo, bool allowEmpty)
@@ -430,6 +729,30 @@ void SettingsDialog::loadSettings()
         adminsStr += QString::fromStdString(config_->chat.admins[i]);
     }
     chatAdminsEdit_->setText(adminsStr);
+
+    // Load message templates
+    msgSwitchedLiveEdit_->setText(QString::fromStdString(config_->messages.switchedToLive));
+    msgSwitchedLowEdit_->setText(QString::fromStdString(config_->messages.switchedToLow));
+    msgSwitchedOfflineEdit_->setText(QString::fromStdString(config_->messages.switchedToOffline));
+    msgStatusEdit_->setText(QString::fromStdString(config_->messages.statusResponse));
+    msgStatusOfflineEdit_->setText(QString::fromStdString(config_->messages.statusOffline));
+    msgRefreshingEdit_->setText(QString::fromStdString(config_->messages.refreshing));
+    msgFixEdit_->setText(QString::fromStdString(config_->messages.fixAttempt));
+    msgStreamStartedEdit_->setText(QString::fromStdString(config_->messages.streamStarted));
+    msgStreamStoppedEdit_->setText(QString::fromStdString(config_->messages.streamStopped));
+    msgSceneSwitchedEdit_->setText(QString::fromStdString(config_->messages.sceneSwitched));
+
+    // Load custom commands
+    customCmdTable_->setRowCount(0);
+    for (const auto &cmd : config_->customCommands) {
+        int row = customCmdTable_->rowCount();
+        customCmdTable_->insertRow(row);
+        QCheckBox *enabledCheck = new QCheckBox();
+        enabledCheck->setChecked(cmd.enabled);
+        customCmdTable_->setCellWidget(row, 0, enabledCheck);
+        customCmdTable_->setItem(row, 1, new QTableWidgetItem(QString::fromStdString(cmd.trigger)));
+        customCmdTable_->setItem(row, 2, new QTableWidgetItem(QString::fromStdString(cmd.response)));
+    }
 }
 
 void SettingsDialog::saveSettings()
@@ -504,6 +827,33 @@ void SettingsDialog::saveSettings()
             config_->chat.admins.push_back(admin.trimmed().toStdString());
         }
     }
+
+    // Save message templates
+    config_->messages.switchedToLive = msgSwitchedLiveEdit_->text().toStdString();
+    config_->messages.switchedToLow = msgSwitchedLowEdit_->text().toStdString();
+    config_->messages.switchedToOffline = msgSwitchedOfflineEdit_->text().toStdString();
+    config_->messages.statusResponse = msgStatusEdit_->text().toStdString();
+    config_->messages.statusOffline = msgStatusOfflineEdit_->text().toStdString();
+    config_->messages.refreshing = msgRefreshingEdit_->text().toStdString();
+    config_->messages.fixAttempt = msgFixEdit_->text().toStdString();
+    config_->messages.streamStarted = msgStreamStartedEdit_->text().toStdString();
+    config_->messages.streamStopped = msgStreamStoppedEdit_->text().toStdString();
+    config_->messages.sceneSwitched = msgSceneSwitchedEdit_->text().toStdString();
+
+    // Save custom commands
+    config_->customCommands.clear();
+    for (int row = 0; row < customCmdTable_->rowCount(); row++) {
+        CustomChatCommand cmd;
+        QCheckBox *enabledCheck = qobject_cast<QCheckBox*>(customCmdTable_->cellWidget(row, 0));
+        cmd.enabled = enabledCheck ? enabledCheck->isChecked() : true;
+        QTableWidgetItem *triggerItem = customCmdTable_->item(row, 1);
+        cmd.trigger = triggerItem ? triggerItem->text().toStdString() : "";
+        QTableWidgetItem *responseItem = customCmdTable_->item(row, 2);
+        cmd.response = responseItem ? responseItem->text().toStdString() : "";
+        if (!cmd.trigger.empty()) {
+            config_->customCommands.push_back(cmd);
+        }
+    }
 }
 
 void SettingsDialog::onAddServer()
@@ -576,6 +926,7 @@ void SettingsDialog::refreshStatus()
 {
     if (!switcher_) {
         statusLabel_->setText("Status: Not initialized");
+        statusLabel_->setStyleSheet("color: #f38ba8; font-weight: bold; font-size: 13px;");
         bitrateLabel_->setText("Bitrate: --");
         return;
     }
@@ -585,8 +936,12 @@ void SettingsDialog::refreshStatus()
 
     auto info = switcher_->getCurrentBitrate();
     if (info.isOnline) {
+        statusLabel_->setStyleSheet("color: #a6e3a1; font-weight: bold; font-size: 13px;");
+        bitrateLabel_->setStyleSheet("color: #89dceb; font-weight: bold; font-size: 13px;");
         bitrateLabel_->setText(QString("Bitrate: %1 kbps").arg(info.bitrateKbps));
     } else {
+        statusLabel_->setStyleSheet("color: #f38ba8; font-weight: bold; font-size: 13px;");
+        bitrateLabel_->setStyleSheet("color: #f38ba8; font-weight: bold; font-size: 13px;");
         bitrateLabel_->setText("Bitrate: Offline");
     }
 }

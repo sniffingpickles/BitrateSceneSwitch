@@ -149,10 +149,15 @@ void ChatClient::handleMessage(const std::string& raw)
     
     if (raw.find("PRIVMSG") != std::string::npos) {
         ChatMessage msg = parseMessage(raw);
-        if (msg.command != ChatCommand::None && isAdmin(msg.username)) {
-            if (callback_) {
-                callback_(msg);
-            }
+        if (!isAdmin(msg.username))
+            return;
+        
+        // Pass all messages (including None) so custom commands can be checked
+        if (msg.message.empty() || msg.message[0] != '!')
+            return;
+        
+        if (callback_) {
+            callback_(msg);
         }
     }
 }
@@ -187,9 +192,11 @@ ChatCommand ChatClient::parseCommand(const std::string& message, std::string& ar
     std::transform(lower.begin(), lower.end(), lower.begin(), ::tolower);
     
     auto checkCmd = [&](const std::string& cmd, ChatCommand type) -> bool {
-        if (lower == cmd || lower.substr(0, cmd.length() + 1) == cmd + " ") {
-            if (lower.length() > cmd.length() + 1) {
-                args = message.substr(cmd.length() + 1);
+        std::string cmdLower = cmd;
+        std::transform(cmdLower.begin(), cmdLower.end(), cmdLower.begin(), ::tolower);
+        if (lower == cmdLower || lower.substr(0, cmdLower.length() + 1) == cmdLower + " ") {
+            if (lower.length() > cmdLower.length() + 1) {
+                args = message.substr(cmdLower.length() + 1);
             }
             return true;
         }
@@ -212,20 +219,23 @@ ChatCommand ChatClient::parseCommand(const std::string& message, std::string& ar
 
 bool ChatClient::isAdmin(const std::string& username)
 {
-    if (config_.admins.empty()) return true;
-    
     std::string lower = username;
     std::transform(lower.begin(), lower.end(), lower.begin(), ::tolower);
     
+    // Channel owner always has access
+    std::string channelLower = config_.channel;
+    std::transform(channelLower.begin(), channelLower.end(), channelLower.begin(), ::tolower);
+    if (lower == channelLower) return true;
+    
+    // If no admins configured, only channel owner has access
+    if (config_.admins.empty()) return false;
+    
+    // Check explicit admin list
     for (const auto& admin : config_.admins) {
         std::string adminLower = admin;
         std::transform(adminLower.begin(), adminLower.end(), adminLower.begin(), ::tolower);
         if (lower == adminLower) return true;
     }
-    
-    std::string channelLower = config_.channel;
-    std::transform(channelLower.begin(), channelLower.end(), channelLower.begin(), ::tolower);
-    if (lower == channelLower) return true;
     
     return false;
 }

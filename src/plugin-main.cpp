@@ -10,6 +10,7 @@
 #include "switcher.hpp"
 #include "config.hpp"
 #include "settings-dialog.hpp"
+#include "websocket-vendor.hpp"
 
 OBS_DECLARE_MODULE()
 OBS_MODULE_USE_DEFAULT_LOCALE("BitrateSceneSwitch", "en-US")
@@ -110,9 +111,22 @@ bool obs_module_load(void)
     return true;
 }
 
+void obs_module_post_load(void)
+{
+    // Register WebSocket vendor requests (obs-websocket must be loaded first)
+    auto &wsVendor = BitrateSwitch::WebSocketVendor::instance();
+    wsVendor.setConfig(g_config);
+    wsVendor.setSwitcher(g_switcher);
+    if (wsVendor.registerVendor()) {
+        blog(LOG_INFO, "[BitrateSceneSwitch] WebSocket vendor requests registered");
+    }
+}
+
 void obs_module_unload(void)
 {
     blog(LOG_INFO, "[BitrateSceneSwitch] Plugin unloading");
+
+    BitrateSwitch::WebSocketVendor::instance().unregisterVendor();
 
     obs_frontend_remove_event_callback(frontend_event_callback, nullptr);
     obs_frontend_remove_save_callback(save_callback, nullptr);

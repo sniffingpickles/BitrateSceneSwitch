@@ -12,6 +12,7 @@ Switcher::Switcher(Config *config)
     : config_(config)
     , sameTypeStart_(std::chrono::steady_clock::now())
     , offlineStart_(std::chrono::steady_clock::now())
+    , streamStartTime_(std::chrono::steady_clock::now())
 {
     prevScene_ = config_->scenes.normal;
     reloadServers();
@@ -161,7 +162,7 @@ void Switcher::doSwitchCheck()
                        prevSwitchType_ == SwitchType::Offline &&
                        currentSwitchType != SwitchType::Offline;
 
-    // NOALBS: If server changed while we have a Previous type, force switch to Normal
+    // If the active server changed, force a Normal switch instead of Previous
     if (currentSwitchType == SwitchType::Previous && activeServer) {
         if (!lastUsedServerName_.empty() && lastUsedServerName_ != activeServer->getName()) {
             currentSwitchType = SwitchType::Normal;
@@ -185,8 +186,7 @@ void Switcher::doSwitchCheck()
     if (sameTypeCount_ < config_->retryAttempts && !forceSwitch)
         return;
 
-    // NOALBS: Avoid triggering offline timeout when stream just started
-    // Grace period = retry_attempts + 5 seconds
+    // Grace period: avoid false offline timeout right after stream start
     if (!config_->onlyWhenStreaming) {
         auto streamElapsed = std::chrono::steady_clock::now() - streamStartTime_;
         auto gracePeriod = std::chrono::seconds(config_->retryAttempts + 5);
@@ -200,7 +200,7 @@ void Switcher::doSwitchCheck()
     // Handle offline timeout
     handleOfflineTimeout();
 
-    // NOALBS: When offline, use last used server for override scenes
+    // When offline, use last-known server for its override scenes
     StreamServer* serverForScenes = activeServer;
     if (currentSwitchType == SwitchType::Offline && !lastUsedServerName_.empty()) {
         // Find the last used server for its override scenes
@@ -219,7 +219,7 @@ void Switcher::doSwitchCheck()
         targetScene = getSceneForType(currentSwitchType, serverForScenes);
     }
 
-    // NOALBS: Track previous scene and last used server
+    // Track previous scene and last used server for recovery
     if (currentSwitchType == SwitchType::Normal || 
         currentSwitchType == SwitchType::Low) {
         prevScene_ = targetScene;
@@ -229,7 +229,7 @@ void Switcher::doSwitchCheck()
         lastUsedServerName_ = activeServer->getName();
     }
 
-    // NOALBS: Skip switching to offline if on starting scene with auto-switch enabled
+    // Don't switch to offline while on starting scene (wait for feed)
     std::string currentScene = getCurrentScene();
     if (!config_->optionalScenes.starting.empty() &&
         currentScene == config_->optionalScenes.starting &&
@@ -283,7 +283,6 @@ SwitchType Switcher::getOnlineServerStatus(StreamServer** activeServer)
         if (status != SwitchType::Offline) {
             lastBitrateInfo_ = server->getBitrate();
             lastBitrateInfo_.serverName = server->getName();
-            lastActiveServerName_ = server->getName();
             if (activeServer) *activeServer = server.get();
             return status;
         }
@@ -414,7 +413,6 @@ void Switcher::refreshScene()
     if (!config_->optionalScenes.refresh.empty()) {
         std::string previousScene = getCurrentScene();
         
-        // Don't refresh if already on refresh scene
         if (previousScene == config_->optionalScenes.refresh) {
             blog(LOG_INFO, "[BitrateSceneSwitch] Refresh: already on refresh scene, skipping");
             return;
@@ -423,14 +421,20 @@ void Switcher::refreshScene()
         switchToScene(config_->optionalScenes.refresh);
         blog(LOG_INFO, "[BitrateSceneSwitch] Refresh: switching to refresh scene");
         
-        // Wait 5 seconds then switch back (in a separate thread to not block)
-        std::thread([this, previousScene]() {
-            std::this_thread::sleep_for(std::chrono::seconds(5));
-            switchToScene(previousScene);
-            blog(LOG_INFO, "[BitrateSceneSwitch] Refresh: returning to previous scene: %s", previousScene.c_str());
+        // Capture running_ flag by reference to check if switcher is still alive.
+        // The thread will bail out early if the switcher is shutting down.
+        std::atomic<bool> &runningRef = running_;
+        std::thread([this, previousScene, &runningRef]() {
+            for (int i = 0; i < 50 && runningRef; ++i) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            }
+            if (runningRef) {
+                switchToScene(previousScene);
+                blog(LOG_INFO, "[BitrateSceneSwitch] Refresh: returned to scene: %s",
+                     previousScene.c_str());
+            }
         }).detach();
     } else {
-        // No refresh scene configured, fall back to fix
         fixMediaSources();
     }
 }
@@ -460,18 +464,19 @@ void Switcher::fixMediaSources()
             obs_data_t *settings = obs_source_get_settings(source);
             if (settings) {
                 const char *input = obs_data_get_string(settings, "input");
-                if (input) {
+                if (input && input[0] != '\0') {
                     std::string inputStr = input;
                     std::transform(inputStr.begin(), inputStr.end(), inputStr.begin(), ::tolower);
                     
-                    // Check if it's a streaming protocol
-                    if (inputStr.find("rtmp") != std::string::npos ||
-                        inputStr.find("srt") != std::string::npos ||
-                        inputStr.find("udp") != std::string::npos ||
-                        inputStr.find("rist") != std::string::npos ||
-                        inputStr.find("rtsp") != std::string::npos) {
-                        
-                        // Refresh by updating settings (triggers reconnect)
+                    // Match streaming protocol prefixes (consistent with NOALBS)
+                    bool isStreamSource =
+                        inputStr.rfind("rtmp", 0) == 0 ||
+                        inputStr.rfind("srt", 0) == 0 ||
+                        inputStr.rfind("udp", 0) == 0 ||
+                        inputStr.rfind("rist", 0) == 0 ||
+                        inputStr.rfind("rtsp", 0) == 0;
+                    
+                    if (isStreamSource) {
                         obs_source_update(source, settings);
                         blog(LOG_INFO, "[BitrateSceneSwitch] Fix: refreshed media source: %s", 
                              obs_source_get_name(source));
@@ -574,91 +579,77 @@ void Switcher::handleChatCommand(const ChatMessage& msg)
 {
     blog(LOG_INFO, "[BitrateSceneSwitch] Chat command from %s: %s", 
          msg.username.c_str(), msg.message.c_str());
-    
+
+    auto reply = [this](const std::string &text) {
+        if (chatClient_ && chatClient_->isConnected())
+            chatClient_->sendMessage(text);
+    };
+    auto announce = [this, &reply](const std::string &text) {
+        if (config_->chat.announceSceneChanges)
+            reply(text);
+    };
+
     switch (msg.command) {
     case ChatCommand::Live:
         switchToLive();
-        if (config_->chat.announceSceneChanges && chatClient_) {
-            chatClient_->sendMessage("Switched to Live scene");
-        }
+        announce(formatTemplate(config_->messages.sceneSwitched, config_->scenes.normal));
         break;
     case ChatCommand::Low:
         switchToLow();
-        if (config_->chat.announceSceneChanges && chatClient_) {
-            chatClient_->sendMessage("Switched to Low scene");
-        }
+        announce(formatTemplate(config_->messages.sceneSwitched, config_->scenes.low));
         break;
     case ChatCommand::Brb:
         switchToBrb();
-        if (config_->chat.announceSceneChanges && chatClient_) {
-            chatClient_->sendMessage("Switched to BRB scene");
-        }
+        announce(formatTemplate(config_->messages.sceneSwitched, config_->scenes.offline));
         break;
     case ChatCommand::Refresh:
         refreshScene();
-        if (config_->chat.announceSceneChanges && chatClient_) {
-            chatClient_->sendMessage("Refreshing scene...");
-        }
+        announce(formatTemplate(config_->messages.refreshing));
         break;
     case ChatCommand::Status:
-        if (chatClient_) {
-            chatClient_->sendMessage(getStatusString());
-        }
+        if (lastBitrateInfo_.isOnline)
+            reply(formatTemplate(config_->messages.statusResponse));
+        else
+            reply(formatTemplate(config_->messages.statusOffline));
         break;
     case ChatCommand::Trigger:
         triggerSwitch();
-        if (config_->chat.announceSceneChanges && chatClient_) {
-            chatClient_->sendMessage("Triggered switch check");
-        }
+        announce("Triggered switch check");
         break;
     case ChatCommand::Fix:
         fixMediaSources();
-        if (config_->chat.announceSceneChanges && chatClient_) {
-            chatClient_->sendMessage("Attempting to fix stream...");
-        }
+        announce(formatTemplate(config_->messages.fixAttempt));
         break;
     case ChatCommand::SwitchScene:
-        if (!msg.args.empty()) {
-            if (switchToSceneByName(msg.args)) {
-                if (config_->chat.announceSceneChanges && chatClient_) {
-                    chatClient_->sendMessage("Switched to scene: " + msg.args);
-                }
-            } else {
-                if (chatClient_) {
-                    chatClient_->sendMessage("Scene not found: " + msg.args);
-                }
-            }
+        if (msg.args.empty()) {
+            reply("Usage: !ss <scene_name>");
+        } else if (switchToSceneByName(msg.args)) {
+            announce(formatTemplate(config_->messages.sceneSwitched, msg.args));
         } else {
-            if (chatClient_) {
-                chatClient_->sendMessage("Usage: !ss <scene_name>");
-            }
+            reply("Scene not found: " + msg.args);
         }
         break;
     case ChatCommand::Start:
-        if (!isStreaming_) {
-            obs_frontend_streaming_start();
-            if (chatClient_) {
-                chatClient_->sendMessage("Starting stream...");
-            }
-            blog(LOG_INFO, "[BitrateSceneSwitch] Stream started via chat command");
+        if (isStreaming_) {
+            reply("Stream is already running");
         } else {
-            if (chatClient_) {
-                chatClient_->sendMessage("Stream is already running");
-            }
+            obs_frontend_streaming_start();
+            reply(formatTemplate(config_->messages.streamStarted));
+            blog(LOG_INFO, "[BitrateSceneSwitch] Stream started via chat");
         }
         break;
     case ChatCommand::Stop:
-        if (isStreaming_) {
-            obs_frontend_streaming_stop();
-            if (chatClient_) {
-                chatClient_->sendMessage("Stopping stream...");
-            }
-            blog(LOG_INFO, "[BitrateSceneSwitch] Stream stopped via chat command");
+        if (!isStreaming_) {
+            reply("Stream is not running");
         } else {
-            if (chatClient_) {
-                chatClient_->sendMessage("Stream is not running");
-            }
+            obs_frontend_streaming_stop();
+            reply(formatTemplate(config_->messages.streamStopped));
+            blog(LOG_INFO, "[BitrateSceneSwitch] Stream stopped via chat");
         }
+        break;
+    case ChatCommand::None:
+        // Check custom commands for unrecognized messages
+        handleCustomCommands(msg);
         break;
     default:
         break;
@@ -670,22 +661,72 @@ void Switcher::announceSceneChange(SwitchType type)
     if (!config_->chat.announceSceneChanges || !chatClient_ || !chatClient_->isConnected())
         return;
     
-    std::string msg;
+    std::string tmpl;
     switch (type) {
     case SwitchType::Normal:
-        msg = "Switched to Live scene (bitrate recovered)";
+        tmpl = config_->messages.switchedToLive;
         break;
     case SwitchType::Low:
-        msg = "Switched to Low scene (low bitrate detected)";
+        tmpl = config_->messages.switchedToLow;
         break;
     case SwitchType::Offline:
-        msg = "Switched to Offline scene";
+        tmpl = config_->messages.switchedToOffline;
         break;
     default:
         return;
     }
     
-    chatClient_->sendMessage(msg);
+    chatClient_->sendMessage(formatTemplate(tmpl));
+}
+
+std::string Switcher::formatTemplate(const std::string &tmpl, const std::string &sceneOverride)
+{
+    std::string result = tmpl;
+    
+    auto replaceAll = [](std::string &str, const std::string &from, const std::string &to) {
+        size_t pos = 0;
+        while ((pos = str.find(from, pos)) != std::string::npos) {
+            str.replace(pos, from.length(), to);
+            pos += to.length();
+        }
+    };
+    
+    // Build placeholder values from current state
+    BitrateInfo info = lastBitrateInfo_;
+    std::string scene = sceneOverride.empty() ? getCurrentScene() : sceneOverride;
+    
+    replaceAll(result, "{bitrate}", std::to_string(info.bitrateKbps));
+    replaceAll(result, "{rtt}", std::to_string(static_cast<int>(info.rttMs)));
+    replaceAll(result, "{scene}", scene);
+    replaceAll(result, "{prev_scene}", prevScene_);
+    replaceAll(result, "{server}", info.serverName);
+    replaceAll(result, "{status}", info.isOnline ? "Online" : "Offline");
+    replaceAll(result, "{uptime}", isStreaming_ ? "Live" : "Not streaming");
+    
+    return result;
+}
+
+void Switcher::handleCustomCommands(const ChatMessage& msg)
+{
+    if (config_->customCommands.empty()) return;
+    
+    std::string msgLower = msg.message;
+    std::transform(msgLower.begin(), msgLower.end(), msgLower.begin(), ::tolower);
+    
+    for (const auto &cmd : config_->customCommands) {
+        if (!cmd.enabled || cmd.trigger.empty()) continue;
+        
+        std::string triggerLower = cmd.trigger;
+        std::transform(triggerLower.begin(), triggerLower.end(), triggerLower.begin(), ::tolower);
+        
+        // Match exact command or command with trailing space (for args)
+        if (msgLower == triggerLower || msgLower.rfind(triggerLower + " ", 0) == 0) {
+            if (chatClient_ && chatClient_->isConnected()) {
+                chatClient_->sendMessage(formatTemplate(cmd.response));
+            }
+            return;
+        }
+    }
 }
 
 BitrateInfo Switcher::getCurrentBitrate()
@@ -708,15 +749,10 @@ std::string Switcher::getStatusString()
         return "No servers configured";
     
     if (lastBitrateInfo_.isOnline) {
-        std::string status = "Online";
-        if (!lastBitrateInfo_.serverName.empty()) {
-            status += " (" + lastBitrateInfo_.serverName + ")";
-        }
-        status += " - " + lastBitrateInfo_.message;
-        return status;
+        return formatTemplate(config_->messages.statusResponse);
     }
     
-    return "Offline";
+    return formatTemplate(config_->messages.statusOffline);
 }
 
 } // namespace BitrateSwitch

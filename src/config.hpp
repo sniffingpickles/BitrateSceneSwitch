@@ -81,6 +81,28 @@ struct OptionalOptions {
     bool switchFromStartingToLive = false;     // Auto-switch from starting to live when feed detected
 };
 
+// Message templates for chat announcements
+// Supported placeholders: {bitrate}, {rtt}, {scene}, {prev_scene}, {server}, {status}
+struct MessageTemplates {
+    std::string switchedToLive = "Switched to Live scene ({bitrate} kbps)";
+    std::string switchedToLow = "Low bitrate detected ({bitrate} kbps) - switched to Low scene";
+    std::string switchedToOffline = "Stream offline - switched to Offline scene";
+    std::string statusResponse = "{server}: {bitrate} kbps | RTT: {rtt} ms | Scene: {scene}";
+    std::string statusOffline = "Stream is offline | Scene: {scene}";
+    std::string refreshing = "Refreshing scene...";
+    std::string fixAttempt = "Attempting to fix stream...";
+    std::string streamStarted = "Starting stream...";
+    std::string streamStopped = "Stopping stream...";
+    std::string sceneSwitched = "Switched to scene: {scene}";
+};
+
+// Custom chat command: user-defined trigger -> message template
+struct CustomChatCommand {
+    std::string trigger;      // e.g. "!ping"
+    std::string response;     // e.g. "Pong! Bitrate: {bitrate} kbps"
+    bool enabled = true;
+};
+
 // Chat platform type
 enum class ChatPlatform {
     Twitch = 0
@@ -130,6 +152,8 @@ public:
     OptionalScenes optionalScenes;
     OptionalOptions options;
     ChatConfig chat;
+    MessageTemplates messages;
+    std::vector<CustomChatCommand> customCommands;
     std::vector<StreamServerConfig> servers;
 
 private:

@@ -167,6 +167,31 @@ obs_data_t *Config::save()
     obs_data_set_string(data, "chat_cmd_trigger", chat.cmdTrigger.c_str());
     obs_data_set_string(data, "chat_cmd_fix", chat.cmdFix.c_str());
 
+    // Message templates
+    obs_data_set_string(data, "msg_switched_live", messages.switchedToLive.c_str());
+    obs_data_set_string(data, "msg_switched_low", messages.switchedToLow.c_str());
+    obs_data_set_string(data, "msg_switched_offline", messages.switchedToOffline.c_str());
+    obs_data_set_string(data, "msg_status", messages.statusResponse.c_str());
+    obs_data_set_string(data, "msg_status_offline", messages.statusOffline.c_str());
+    obs_data_set_string(data, "msg_refreshing", messages.refreshing.c_str());
+    obs_data_set_string(data, "msg_fix", messages.fixAttempt.c_str());
+    obs_data_set_string(data, "msg_stream_started", messages.streamStarted.c_str());
+    obs_data_set_string(data, "msg_stream_stopped", messages.streamStopped.c_str());
+    obs_data_set_string(data, "msg_scene_switched", messages.sceneSwitched.c_str());
+
+    // Custom commands
+    obs_data_array_t *customCmdsArray = obs_data_array_create();
+    for (const auto &cmd : customCommands) {
+        obs_data_t *cmdData = obs_data_create();
+        obs_data_set_string(cmdData, "trigger", cmd.trigger.c_str());
+        obs_data_set_string(cmdData, "response", cmd.response.c_str());
+        obs_data_set_bool(cmdData, "enabled", cmd.enabled);
+        obs_data_array_push_back(customCmdsArray, cmdData);
+        obs_data_release(cmdData);
+    }
+    obs_data_set_array(data, "custom_commands", customCmdsArray);
+    obs_data_array_release(customCmdsArray);
+
     return data;
 }
 
@@ -297,6 +322,43 @@ void Config::load(obs_data_t *data)
     if (cmdStatus && *cmdStatus) chat.cmdStatus = cmdStatus;
     if (cmdTrigger && *cmdTrigger) chat.cmdTrigger = cmdTrigger;
     if (cmdFix && *cmdFix) chat.cmdFix = cmdFix;
+
+    // Message templates (only override if saved value is non-empty)
+    auto loadMsg = [&](const char *key, std::string &dest) {
+        const char *val = obs_data_get_string(data, key);
+        if (val && *val) dest = val;
+    };
+    loadMsg("msg_switched_live", messages.switchedToLive);
+    loadMsg("msg_switched_low", messages.switchedToLow);
+    loadMsg("msg_switched_offline", messages.switchedToOffline);
+    loadMsg("msg_status", messages.statusResponse);
+    loadMsg("msg_status_offline", messages.statusOffline);
+    loadMsg("msg_refreshing", messages.refreshing);
+    loadMsg("msg_fix", messages.fixAttempt);
+    loadMsg("msg_stream_started", messages.streamStarted);
+    loadMsg("msg_stream_stopped", messages.streamStopped);
+    loadMsg("msg_scene_switched", messages.sceneSwitched);
+
+    // Custom commands
+    customCommands.clear();
+    obs_data_array_t *customCmdsArray = obs_data_get_array(data, "custom_commands");
+    if (customCmdsArray) {
+        size_t cmdCount = obs_data_array_count(customCmdsArray);
+        for (size_t i = 0; i < cmdCount; i++) {
+            obs_data_t *cmdData = obs_data_array_item(customCmdsArray, i);
+            CustomChatCommand cmd;
+            const char *trigger = obs_data_get_string(cmdData, "trigger");
+            const char *response = obs_data_get_string(cmdData, "response");
+            if (trigger && *trigger) cmd.trigger = trigger;
+            if (response) cmd.response = response;
+            cmd.enabled = obs_data_get_bool(cmdData, "enabled");
+            if (!cmd.trigger.empty()) {
+                customCommands.push_back(cmd);
+            }
+            obs_data_release(cmdData);
+        }
+        obs_data_array_release(customCmdsArray);
+    }
 }
 
 } // namespace BitrateSwitch

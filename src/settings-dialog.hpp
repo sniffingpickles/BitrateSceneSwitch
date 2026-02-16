@@ -11,6 +11,7 @@
 #include <QTabWidget>
 
 #include "config.hpp"
+#include "update-checker.hpp"
 
 namespace BitrateSwitch {
 
@@ -38,6 +39,7 @@ private:
     void setupServersTab(QWidget *tab);
     void setupAdvancedTab(QWidget *tab);
     void setupChatTab(QWidget *tab);
+    void setupMessagesTab(QWidget *tab);
     void loadSettings();
     void saveSettings();
     void populateSceneComboBox(QComboBox *combo, bool allowEmpty = false);
@@ -99,6 +101,27 @@ private:
     QLineEdit *chatAdminsEdit_;
     QCheckBox *chatAnnounceCheckbox_;
     QPushButton *chatConnectBtn_;
+
+    // Message templates
+    QLineEdit *msgSwitchedLiveEdit_;
+    QLineEdit *msgSwitchedLowEdit_;
+    QLineEdit *msgSwitchedOfflineEdit_;
+    QLineEdit *msgStatusEdit_;
+    QLineEdit *msgStatusOfflineEdit_;
+    QLineEdit *msgRefreshingEdit_;
+    QLineEdit *msgFixEdit_;
+    QLineEdit *msgStreamStartedEdit_;
+    QLineEdit *msgStreamStoppedEdit_;
+    QLineEdit *msgSceneSwitchedEdit_;
+
+    // Custom commands table
+    QTableWidget *customCmdTable_;
+    QPushButton *addCustomCmdBtn_;
+    QPushButton *removeCustomCmdBtn_;
+    
+    // Update notification
+    QLabel *updateLabel_;
+    UpdateChecker updateChecker_;
 };
 
 } // namespace BitrateSwitch

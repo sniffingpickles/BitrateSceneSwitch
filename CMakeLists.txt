@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 
-project(BitrateSceneSwitch VERSION 1.0.0)
+project(BitrateSceneSwitch VERSION 1.0.3)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -47,6 +47,10 @@ add_library(${PROJECT_NAME} MODULE
     src/servers/nimble.hpp
     src/chat-client.cpp
     src/chat-client.hpp
+    src/update-checker.cpp
+    src/update-checker.hpp
+    src/websocket-vendor.cpp
+    src/websocket-vendor.hpp
 )
 
 target_link_libraries(${PROJECT_NAME} PRIVATE
