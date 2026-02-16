@@ -74,6 +74,49 @@ Control the switcher via Twitch chat (requires setup in Chat tab):
 
 ---
 
+<img src="images/header-websocket.svg" alt="WebSocket API" width="100%">
+
+BitrateSceneSwitch registers as an **obs-websocket vendor**, allowing external tools, bots, and overlays to control the plugin remotely. Requires [obs-websocket](https://github.com/obsproject/obs-websocket) (included with OBS 28+).
+
+All requests use the vendor name `BitrateSceneSwitch` and are sent via the obs-websocket `CallVendorRequest` message.
+
+### Requests
+
+| Request | Description | Parameters | Response |
+|---------|-------------|------------|----------|
+| `GetSettings` | Get all plugin settings | _none_ | `enabled`, `onlyWhenStreaming`, `instantRecover`, `retryAttempts`, triggers, scenes |
+| `SetSettings` | Update plugin settings (partial updates supported) | Any settings field (e.g. `enabled`, `triggerLow`, `sceneNormal`) | `success: true` |
+| `GetStatus` | Get live status | _none_ | `currentScene`, `isStreaming`, `bitrateKbps`, `rttMs`, `isOnline`, `serverName`, `statusMessage`, `enabled` |
+| `SwitchScene` | Switch to a specific scene | `sceneName` (string, required) | `success: true/false`, `error` if failed |
+| `StartStream` | Start streaming | _none_ | `success: true/false`, `error` if already streaming |
+| `StopStream` | Stop streaming | _none_ | `success: true/false`, `error` if not streaming |
+| `GetVersion` | Get plugin version | _none_ | `version`, `vendor` |
+
+### Example (obs-websocket JSON)
+
+```json
+{
+  "op": 6,
+  "d": {
+    "requestType": "CallVendorRequest",
+    "requestId": "1",
+    "requestData": {
+      "vendorName": "BitrateSceneSwitch",
+      "requestType": "GetStatus"
+    }
+  }
+}
+```
+
+### Example (obs-websocket-js)
+
+```js
+const resp = await obs.callVendorRequest("BitrateSceneSwitch", "GetStatus", {});
+console.log(resp.bitrateKbps, resp.rttMs, resp.currentScene);
+```
+
+---
+
 <img src="images/header-servers.svg" alt="Supported Servers" width="100%">
 
 | Server | Stats URL Example |
@@ -104,5 +147,5 @@ GPL-2.0
 ---
 
 <p align="center">
-  <sub>v1.0.0 | Powered by <a href="https://irlhosting.com"><b>IRL</b><span style="color: #22d3ee;">Hosting</span></a></sub>
+  <sub>v1.0.3 | Powered by <a href="https://irlhosting.com"><b>IRL</b><span style="color: #22d3ee;">Hosting</span></a></sub>
 </p>
