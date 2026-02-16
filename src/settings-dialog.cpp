@@ -492,12 +492,12 @@ void SettingsDialog::setupAdvancedTab(QWidget *tab)
     ristStaleFrameFixSpinBox_->setSuffix(" sec");
     ristStaleFrameFixSpinBox_->setToolTip(
         "When the stream goes offline, automatically run a media source fix after this many seconds "
-        "to clear the frozen last frame that RIST leaves behind. Set to 0 to disable.");
+        "to clear the frozen last frame that RIST leaves behind. 0 = disabled.");
 
     QLabel *ristHint = new QLabel(
         "RIST encoders leave a single frozen frame on the media source when the stream stops. "
         "This setting will automatically refresh the media source after the configured delay "
-        "once the stream goes offline, clearing that stale frame.", content);
+        "once the stream goes offline, clearing that stale frame. Set to 0 to disable.", content);
     ristHint->setWordWrap(true);
     ristHint->setStyleSheet("QLabel { color: #a6adc8; font-size: 11px; padding: 4px; }");
 
