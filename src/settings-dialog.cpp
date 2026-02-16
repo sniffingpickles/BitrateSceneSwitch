@@ -6,6 +6,7 @@
 #include <QGroupBox>
 #include <QFormLayout>
 #include <QHeaderView>
+#include <QScrollArea>
 #include <QDialogButtonBox>
 #include <QMessageBox>
 #include <QTimer>
@@ -517,10 +518,18 @@ void SettingsDialog::setupChatTab(QWidget *tab)
 
 void SettingsDialog::setupMessagesTab(QWidget *tab)
 {
-    QVBoxLayout *layout = new QVBoxLayout(tab);
+    // Scroll area so the tab doesn't compress fields
+    QScrollArea *scrollArea = new QScrollArea(tab);
+    scrollArea->setWidgetResizable(true);
+    scrollArea->setFrameShape(QFrame::NoFrame);
+    scrollArea->setStyleSheet("QScrollArea { background-color: transparent; border: none; }");
+    
+    QWidget *scrollContent = new QWidget();
+    QVBoxLayout *layout = new QVBoxLayout(scrollContent);
+    layout->setSpacing(12);
     
     // Placeholder reference
-    QGroupBox *refGroup = new QGroupBox("Available Placeholders", tab);
+    QGroupBox *refGroup = new QGroupBox("Available Placeholders", scrollContent);
     QVBoxLayout *refLayout = new QVBoxLayout(refGroup);
     QLabel *refLabel = new QLabel(
         "<span style='color: #89b4fa;'>{bitrate}</span> - Current bitrate (kbps)&nbsp;&nbsp;"
@@ -529,21 +538,23 @@ void SettingsDialog::setupMessagesTab(QWidget *tab)
         "<span style='color: #89b4fa;'>{prev_scene}</span> - Previous scene<br>"
         "<span style='color: #89b4fa;'>{server}</span> - Active server name&nbsp;&nbsp;"
         "<span style='color: #89b4fa;'>{status}</span> - Online/Offline&nbsp;&nbsp;"
-        "<span style='color: #89b4fa;'>{uptime}</span> - Stream state", tab);
+        "<span style='color: #89b4fa;'>{uptime}</span> - Stream state", scrollContent);
     refLabel->setWordWrap(true);
     refLabel->setStyleSheet("QLabel { color: #a6adc8; font-size: 11px; padding: 4px; }");
     refLayout->addWidget(refLabel);
     layout->addWidget(refGroup);
 
     // Auto-switch message templates
-    QGroupBox *autoGroup = new QGroupBox("Auto-Switch Messages", tab);
+    QGroupBox *autoGroup = new QGroupBox("Auto-Switch Messages", scrollContent);
     QFormLayout *autoForm = new QFormLayout(autoGroup);
+    autoForm->setVerticalSpacing(10);
+    autoForm->setContentsMargins(12, 24, 12, 12);
     
-    msgSwitchedLiveEdit_ = new QLineEdit(tab);
+    msgSwitchedLiveEdit_ = new QLineEdit(scrollContent);
     msgSwitchedLiveEdit_->setToolTip("Message sent when auto-switching to Live scene");
-    msgSwitchedLowEdit_ = new QLineEdit(tab);
+    msgSwitchedLowEdit_ = new QLineEdit(scrollContent);
     msgSwitchedLowEdit_->setToolTip("Message sent when auto-switching to Low scene");
-    msgSwitchedOfflineEdit_ = new QLineEdit(tab);
+    msgSwitchedOfflineEdit_ = new QLineEdit(scrollContent);
     msgSwitchedOfflineEdit_->setToolTip("Message sent when auto-switching to Offline scene");
     
     autoForm->addRow("Switched to Live:", msgSwitchedLiveEdit_);
@@ -552,18 +563,20 @@ void SettingsDialog::setupMessagesTab(QWidget *tab)
     layout->addWidget(autoGroup);
     
     // Command response templates
-    QGroupBox *cmdGroup = new QGroupBox("Command Response Messages", tab);
+    QGroupBox *cmdGroup = new QGroupBox("Command Response Messages", scrollContent);
     QFormLayout *cmdForm = new QFormLayout(cmdGroup);
+    cmdForm->setVerticalSpacing(10);
+    cmdForm->setContentsMargins(12, 24, 12, 12);
     
-    msgStatusEdit_ = new QLineEdit(tab);
+    msgStatusEdit_ = new QLineEdit(scrollContent);
     msgStatusEdit_->setToolTip("Response for !status when online");
-    msgStatusOfflineEdit_ = new QLineEdit(tab);
+    msgStatusOfflineEdit_ = new QLineEdit(scrollContent);
     msgStatusOfflineEdit_->setToolTip("Response for !status when offline");
-    msgRefreshingEdit_ = new QLineEdit(tab);
-    msgFixEdit_ = new QLineEdit(tab);
-    msgStreamStartedEdit_ = new QLineEdit(tab);
-    msgStreamStoppedEdit_ = new QLineEdit(tab);
-    msgSceneSwitchedEdit_ = new QLineEdit(tab);
+    msgRefreshingEdit_ = new QLineEdit(scrollContent);
+    msgFixEdit_ = new QLineEdit(scrollContent);
+    msgStreamStartedEdit_ = new QLineEdit(scrollContent);
+    msgStreamStoppedEdit_ = new QLineEdit(scrollContent);
+    msgSceneSwitchedEdit_ = new QLineEdit(scrollContent);
     msgSceneSwitchedEdit_->setToolTip("Used for !live, !low, !brb, !ss commands");
     
     cmdForm->addRow("Status (online):", msgStatusEdit_);
@@ -576,28 +589,31 @@ void SettingsDialog::setupMessagesTab(QWidget *tab)
     layout->addWidget(cmdGroup);
     
     // Custom commands
-    QGroupBox *customGroup = new QGroupBox("Custom Commands", tab);
+    QGroupBox *customGroup = new QGroupBox("Custom Commands", scrollContent);
     QVBoxLayout *customLayout = new QVBoxLayout(customGroup);
+    customLayout->setContentsMargins(12, 24, 12, 12);
+    customLayout->setSpacing(8);
     
     QLabel *customHint = new QLabel(
-        "Define custom chat commands. The response supports all placeholders above.", tab);
+        "Define custom chat commands. The response supports all placeholders above.", scrollContent);
     customHint->setStyleSheet("QLabel { color: #a6adc8; font-size: 11px; }");
     customLayout->addWidget(customHint);
     
-    customCmdTable_ = new QTableWidget(0, 3, tab);
+    customCmdTable_ = new QTableWidget(0, 3, scrollContent);
     customCmdTable_->setHorizontalHeaderLabels({"Enabled", "Trigger", "Response"});
     customCmdTable_->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Stretch);
     customCmdTable_->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
     customCmdTable_->setSelectionBehavior(QAbstractItemView::SelectRows);
     customCmdTable_->setSelectionMode(QAbstractItemView::SingleSelection);
+    customCmdTable_->setMinimumHeight(120);
     customLayout->addWidget(customCmdTable_);
     
     QHBoxLayout *customBtnLayout = new QHBoxLayout();
-    addCustomCmdBtn_ = new QPushButton("+ Add Command", tab);
+    addCustomCmdBtn_ = new QPushButton("+ Add Command", scrollContent);
     addCustomCmdBtn_->setStyleSheet(
         "QPushButton { background-color: #a6e3a1; color: #1e1e2e; border: none; padding: 6px 14px; }"
         "QPushButton:hover { background-color: #94e2d5; }");
-    removeCustomCmdBtn_ = new QPushButton("Remove", tab);
+    removeCustomCmdBtn_ = new QPushButton("Remove", scrollContent);
     removeCustomCmdBtn_->setStyleSheet(
         "QPushButton { background-color: #f38ba8; color: #1e1e2e; border: none; padding: 6px 14px; }"
         "QPushButton:hover { background-color: #eba0ac; }");
@@ -622,6 +638,11 @@ void SettingsDialog::setupMessagesTab(QWidget *tab)
     });
     
     layout->addWidget(customGroup);
+    
+    scrollArea->setWidget(scrollContent);
+    QVBoxLayout *tabLayout = new QVBoxLayout(tab);
+    tabLayout->setContentsMargins(0, 0, 0, 0);
+    tabLayout->addWidget(scrollArea);
 }
 
 void SettingsDialog::populateSceneComboBox(QComboBox *combo, bool allowEmpty)
