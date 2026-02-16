@@ -223,7 +223,7 @@ void WebSocketVendor::onGetVersion(obs_data_t *requestData, obs_data_t *response
     (void)requestData;
     (void)priv_data;
 
-    obs_data_set_string(responseData, "version", UpdateChecker::getCurrentVersion());
+    obs_data_set_string(responseData, "version", UpdateChecker::getCurrentVersion().c_str());
     obs_data_set_string(responseData, "vendor", VENDOR_NAME);
 }
 

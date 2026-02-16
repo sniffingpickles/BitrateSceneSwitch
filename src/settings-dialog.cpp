@@ -252,7 +252,7 @@ void SettingsDialog::setupUI()
         QString("<div style='text-align: center; color: #585b70;'>"
         "Bitrate Scene Switch v%1 | Powered by "
         "<a href='https://irlhosting.com' style='color: #cba6f7;'>IRLHosting.com</a>"
-        "</div>").arg(UpdateChecker::getCurrentVersion()));
+        "</div>").arg(QString::fromStdString(UpdateChecker::getCurrentVersion())));
     brandingLabel->setOpenExternalLinks(true);
     brandingLabel->setAlignment(Qt::AlignCenter);
     mainLayout->addWidget(brandingLabel);
