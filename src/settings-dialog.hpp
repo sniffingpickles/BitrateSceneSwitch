@@ -43,6 +43,7 @@ private:
     void loadSettings();
     void saveSettings();
     void populateSceneComboBox(QComboBox *combo, bool allowEmpty = false);
+    static QWidget *wrapInScrollArea(QWidget *content, QWidget *parent);
 
     Config *config_;
     Switcher *switcher_;

@@ -273,19 +273,34 @@ void SettingsDialog::setupUI()
     });
 }
 
+QWidget *SettingsDialog::wrapInScrollArea(QWidget *content, QWidget *parent)
+{
+    QScrollArea *scroll = new QScrollArea(parent);
+    scroll->setWidgetResizable(true);
+    scroll->setFrameShape(QFrame::NoFrame);
+    scroll->setStyleSheet("QScrollArea { background-color: transparent; border: none; }");
+    scroll->setWidget(content);
+    
+    QVBoxLayout *outerLayout = new QVBoxLayout(parent);
+    outerLayout->setContentsMargins(0, 0, 0, 0);
+    outerLayout->addWidget(scroll);
+    return content;
+}
+
 void SettingsDialog::setupGeneralTab(QWidget *tab)
 {
-    QVBoxLayout *layout = new QVBoxLayout(tab);
+    QWidget *content = new QWidget();
+    QVBoxLayout *layout = new QVBoxLayout(content);
     
-    QGroupBox *group = new QGroupBox("Switcher Settings", tab);
+    QGroupBox *group = new QGroupBox("Switcher Settings", content);
     QFormLayout *form = new QFormLayout(group);
     
-    enabledCheckbox_ = new QCheckBox("Enable automatic scene switching", tab);
-    onlyWhenStreamingCheckbox_ = new QCheckBox("Only switch when streaming", tab);
-    instantRecoverCheckbox_ = new QCheckBox("Instantly switch on bitrate recovery", tab);
-    autoNotifyCheckbox_ = new QCheckBox("Enable auto-switch notifications", tab);
+    enabledCheckbox_ = new QCheckBox("Enable automatic scene switching", content);
+    onlyWhenStreamingCheckbox_ = new QCheckBox("Only switch when streaming", content);
+    instantRecoverCheckbox_ = new QCheckBox("Instantly switch on bitrate recovery", content);
+    autoNotifyCheckbox_ = new QCheckBox("Enable auto-switch notifications", content);
     
-    retryAttemptsSpinBox_ = new QSpinBox(tab);
+    retryAttemptsSpinBox_ = new QSpinBox(content);
     retryAttemptsSpinBox_->setRange(1, 30);
     retryAttemptsSpinBox_->setValue(5);
     retryAttemptsSpinBox_->setToolTip("Number of consecutive checks before switching");
@@ -298,34 +313,36 @@ void SettingsDialog::setupGeneralTab(QWidget *tab)
     
     layout->addWidget(group);
     layout->addStretch();
+    wrapInScrollArea(content, tab);
 }
 
 void SettingsDialog::setupTriggersTab(QWidget *tab)
 {
-    QVBoxLayout *layout = new QVBoxLayout(tab);
+    QWidget *content = new QWidget();
+    QVBoxLayout *layout = new QVBoxLayout(content);
     
-    QGroupBox *group = new QGroupBox("Bitrate Triggers", tab);
+    QGroupBox *group = new QGroupBox("Bitrate Triggers", content);
     QFormLayout *form = new QFormLayout(group);
 
-    lowBitrateSpinBox_ = new QSpinBox(tab);
+    lowBitrateSpinBox_ = new QSpinBox(content);
     lowBitrateSpinBox_->setRange(0, 50000);
     lowBitrateSpinBox_->setValue(800);
     lowBitrateSpinBox_->setSuffix(" kbps");
     lowBitrateSpinBox_->setToolTip("Switch to Low scene when bitrate drops below this");
 
-    rttThresholdSpinBox_ = new QSpinBox(tab);
+    rttThresholdSpinBox_ = new QSpinBox(content);
     rttThresholdSpinBox_->setRange(0, 10000);
     rttThresholdSpinBox_->setValue(2500);
     rttThresholdSpinBox_->setSuffix(" ms");
     rttThresholdSpinBox_->setToolTip("Switch to Low scene when RTT exceeds this (SRT only)");
 
-    offlineBitrateSpinBox_ = new QSpinBox(tab);
+    offlineBitrateSpinBox_ = new QSpinBox(content);
     offlineBitrateSpinBox_->setRange(0, 10000);
     offlineBitrateSpinBox_->setValue(0);
     offlineBitrateSpinBox_->setSuffix(" kbps");
     offlineBitrateSpinBox_->setToolTip("Switch to Offline when bitrate drops below this (0 = server offline)");
 
-    rttOfflineSpinBox_ = new QSpinBox(tab);
+    rttOfflineSpinBox_ = new QSpinBox(content);
     rttOfflineSpinBox_->setRange(0, 30000);
     rttOfflineSpinBox_->setValue(0);
     rttOfflineSpinBox_->setSuffix(" ms");
@@ -338,19 +355,21 @@ void SettingsDialog::setupTriggersTab(QWidget *tab)
     
     layout->addWidget(group);
     layout->addStretch();
+    wrapInScrollArea(content, tab);
 }
 
 void SettingsDialog::setupScenesTab(QWidget *tab)
 {
-    QVBoxLayout *layout = new QVBoxLayout(tab);
+    QWidget *content = new QWidget();
+    QVBoxLayout *layout = new QVBoxLayout(content);
     
     // Main switching scenes
-    QGroupBox *mainGroup = new QGroupBox("Switching Scenes", tab);
+    QGroupBox *mainGroup = new QGroupBox("Switching Scenes", content);
     QFormLayout *mainForm = new QFormLayout(mainGroup);
 
-    normalSceneCombo_ = new QComboBox(tab);
-    lowSceneCombo_ = new QComboBox(tab);
-    offlineSceneCombo_ = new QComboBox(tab);
+    normalSceneCombo_ = new QComboBox(content);
+    lowSceneCombo_ = new QComboBox(content);
+    offlineSceneCombo_ = new QComboBox(content);
 
     populateSceneComboBox(normalSceneCombo_);
     populateSceneComboBox(lowSceneCombo_);
@@ -362,13 +381,13 @@ void SettingsDialog::setupScenesTab(QWidget *tab)
     layout->addWidget(mainGroup);
 
     // Optional scenes
-    QGroupBox *optGroup = new QGroupBox("Optional Scenes", tab);
+    QGroupBox *optGroup = new QGroupBox("Optional Scenes", content);
     QFormLayout *optForm = new QFormLayout(optGroup);
 
-    startingSceneCombo_ = new QComboBox(tab);
-    endingSceneCombo_ = new QComboBox(tab);
-    privacySceneCombo_ = new QComboBox(tab);
-    refreshSceneCombo_ = new QComboBox(tab);
+    startingSceneCombo_ = new QComboBox(content);
+    endingSceneCombo_ = new QComboBox(content);
+    privacySceneCombo_ = new QComboBox(content);
+    refreshSceneCombo_ = new QComboBox(content);
 
     populateSceneComboBox(startingSceneCombo_, true);
     populateSceneComboBox(endingSceneCombo_, true);
@@ -382,13 +401,15 @@ void SettingsDialog::setupScenesTab(QWidget *tab)
     layout->addWidget(optGroup);
     
     layout->addStretch();
+    wrapInScrollArea(content, tab);
 }
 
 void SettingsDialog::setupServersTab(QWidget *tab)
 {
-    QVBoxLayout *layout = new QVBoxLayout(tab);
+    QWidget *content = new QWidget();
+    QVBoxLayout *layout = new QVBoxLayout(content);
 
-    serverTable_ = new QTableWidget(0, 6, tab);
+    serverTable_ = new QTableWidget(0, 6, content);
     serverTable_->setHorizontalHeaderLabels({"Enabled", "Type", "Name", "Stats URL", "Stream Key", "Priority"});
     serverTable_->horizontalHeader()->setStretchLastSection(false);
     serverTable_->horizontalHeader()->setSectionResizeMode(3, QHeaderView::Stretch);
@@ -398,17 +419,17 @@ void SettingsDialog::setupServersTab(QWidget *tab)
     layout->addWidget(serverTable_);
 
     QHBoxLayout *btnLayout = new QHBoxLayout();
-    addServerBtn_ = new QPushButton("+ Add Server", tab);
+    addServerBtn_ = new QPushButton("+ Add Server", content);
     addServerBtn_->setStyleSheet(
         "QPushButton { background-color: #a6e3a1; color: #1e1e2e; border: none; padding: 8px 18px; }"
         "QPushButton:hover { background-color: #94e2d5; }"
     );
-    removeServerBtn_ = new QPushButton("Remove", tab);
+    removeServerBtn_ = new QPushButton("Remove", content);
     removeServerBtn_->setStyleSheet(
         "QPushButton { background-color: #f38ba8; color: #1e1e2e; border: none; padding: 8px 18px; }"
         "QPushButton:hover { background-color: #eba0ac; }"
     );
-    testBtn_ = new QPushButton("Test Connection", tab);
+    testBtn_ = new QPushButton("Test Connection", content);
     testBtn_->setStyleSheet(
         "QPushButton { background-color: #89b4fa; color: #1e1e2e; border: none; padding: 8px 18px; }"
         "QPushButton:hover { background-color: #74c7ec; }"
@@ -422,24 +443,26 @@ void SettingsDialog::setupServersTab(QWidget *tab)
     connect(addServerBtn_, &QPushButton::clicked, this, &SettingsDialog::onAddServer);
     connect(removeServerBtn_, &QPushButton::clicked, this, &SettingsDialog::onRemoveServer);
     connect(testBtn_, &QPushButton::clicked, this, &SettingsDialog::onTestConnection);
+    wrapInScrollArea(content, tab);
 }
 
 void SettingsDialog::setupAdvancedTab(QWidget *tab)
 {
-    QVBoxLayout *layout = new QVBoxLayout(tab);
+    QWidget *content = new QWidget();
+    QVBoxLayout *layout = new QVBoxLayout(content);
     
-    QGroupBox *group = new QGroupBox("Advanced Options", tab);
+    QGroupBox *group = new QGroupBox("Advanced Options", content);
     QFormLayout *form = new QFormLayout(group);
 
-    offlineTimeoutSpinBox_ = new QSpinBox(tab);
+    offlineTimeoutSpinBox_ = new QSpinBox(content);
     offlineTimeoutSpinBox_->setRange(0, 120);
     offlineTimeoutSpinBox_->setValue(0);
     offlineTimeoutSpinBox_->setSuffix(" min");
     offlineTimeoutSpinBox_->setToolTip("Auto-stop stream after X minutes offline (0 = disabled)");
 
-    recordWhileStreamingCheckbox_ = new QCheckBox("Auto-record while streaming", tab);
-    switchToStartingCheckbox_ = new QCheckBox("Switch to Starting scene on stream start", tab);
-    switchFromStartingCheckbox_ = new QCheckBox("Auto-switch from Starting to Live when feed detected", tab);
+    recordWhileStreamingCheckbox_ = new QCheckBox("Auto-record while streaming", content);
+    switchToStartingCheckbox_ = new QCheckBox("Switch to Starting scene on stream start", content);
+    switchFromStartingCheckbox_ = new QCheckBox("Auto-switch from Starting to Live when feed detected", content);
 
     form->addRow("Offline Timeout:", offlineTimeoutSpinBox_);
     form->addRow(recordWhileStreamingCheckbox_);
@@ -448,29 +471,33 @@ void SettingsDialog::setupAdvancedTab(QWidget *tab)
     
     layout->addWidget(group);
     layout->addStretch();
+    wrapInScrollArea(content, tab);
 }
 
 void SettingsDialog::setupChatTab(QWidget *tab)
 {
-    QVBoxLayout *layout = new QVBoxLayout(tab);
+    QWidget *content = new QWidget();
+    QVBoxLayout *layout = new QVBoxLayout(content);
     
     // Chat connection settings
-    QGroupBox *connGroup = new QGroupBox("Chat Connection", tab);
+    QGroupBox *connGroup = new QGroupBox("Chat Connection", content);
     QFormLayout *connForm = new QFormLayout(connGroup);
+    connForm->setVerticalSpacing(10);
+    connForm->setContentsMargins(12, 24, 12, 12);
     
-    chatEnabledCheckbox_ = new QCheckBox("Enable chat integration", tab);
+    chatEnabledCheckbox_ = new QCheckBox("Enable chat integration", content);
     chatEnabledCheckbox_->setToolTip("Connect to Twitch chat for bot commands");
     
-    chatPlatformCombo_ = new QComboBox(tab);
+    chatPlatformCombo_ = new QComboBox(content);
     chatPlatformCombo_->addItems({"Twitch"});
     
-    chatChannelEdit_ = new QLineEdit(tab);
+    chatChannelEdit_ = new QLineEdit(content);
     chatChannelEdit_->setPlaceholderText("your_channel_name");
     
-    chatBotUsernameEdit_ = new QLineEdit(tab);
+    chatBotUsernameEdit_ = new QLineEdit(content);
     chatBotUsernameEdit_->setPlaceholderText("(optional - uses channel name if empty)");
     
-    chatOauthEdit_ = new QLineEdit(tab);
+    chatOauthEdit_ = new QLineEdit(content);
     chatOauthEdit_->setEchoMode(QLineEdit::Password);
     chatOauthEdit_->setPlaceholderText("oauth:xxxxxxxxxxxxxx");
     chatOauthEdit_->setToolTip("Get your OAuth token from https://twitchapps.com/tmi/");
@@ -484,14 +511,16 @@ void SettingsDialog::setupChatTab(QWidget *tab)
     layout->addWidget(connGroup);
     
     // Chat permissions
-    QGroupBox *permGroup = new QGroupBox("Permissions", tab);
+    QGroupBox *permGroup = new QGroupBox("Permissions", content);
     QFormLayout *permForm = new QFormLayout(permGroup);
+    permForm->setVerticalSpacing(10);
+    permForm->setContentsMargins(12, 24, 12, 12);
     
-    chatAdminsEdit_ = new QLineEdit(tab);
+    chatAdminsEdit_ = new QLineEdit(content);
     chatAdminsEdit_->setPlaceholderText("user1, user2, user3 (empty = channel owner only)");
     chatAdminsEdit_->setToolTip("Comma-separated list of users who can use commands");
     
-    chatAnnounceCheckbox_ = new QCheckBox("Announce scene changes in chat", tab);
+    chatAnnounceCheckbox_ = new QCheckBox("Announce scene changes in chat", content);
     
     permForm->addRow("Allowed Users:", chatAdminsEdit_);
     permForm->addRow(chatAnnounceCheckbox_);
@@ -499,7 +528,7 @@ void SettingsDialog::setupChatTab(QWidget *tab)
     layout->addWidget(permGroup);
     
     // Available commands info
-    QGroupBox *cmdGroup = new QGroupBox("Available Commands", tab);
+    QGroupBox *cmdGroup = new QGroupBox("Available Commands", content);
     QVBoxLayout *cmdLayout = new QVBoxLayout(cmdGroup);
     QLabel *cmdLabel = new QLabel(
         "• !live - Switch to Live scene\n"
@@ -509,21 +538,16 @@ void SettingsDialog::setupChatTab(QWidget *tab)
         "• !refresh - Refresh scene (fix issues)\n"
         "• !status - Show current status\n"
         "• !trigger - Force switch check\n"
-        "• !fix - Alias for refresh", tab);
+        "• !fix - Alias for refresh", content);
     cmdLayout->addWidget(cmdLabel);
     
     layout->addWidget(cmdGroup);
     layout->addStretch();
+    wrapInScrollArea(content, tab);
 }
 
 void SettingsDialog::setupMessagesTab(QWidget *tab)
 {
-    // Scroll area so the tab doesn't compress fields
-    QScrollArea *scrollArea = new QScrollArea(tab);
-    scrollArea->setWidgetResizable(true);
-    scrollArea->setFrameShape(QFrame::NoFrame);
-    scrollArea->setStyleSheet("QScrollArea { background-color: transparent; border: none; }");
-    
     QWidget *scrollContent = new QWidget();
     QVBoxLayout *layout = new QVBoxLayout(scrollContent);
     layout->setSpacing(12);
@@ -639,10 +663,7 @@ void SettingsDialog::setupMessagesTab(QWidget *tab)
     
     layout->addWidget(customGroup);
     
-    scrollArea->setWidget(scrollContent);
-    QVBoxLayout *tabLayout = new QVBoxLayout(tab);
-    tabLayout->setContentsMargins(0, 0, 0, 0);
-    tabLayout->addWidget(scrollArea);
+    wrapInScrollArea(scrollContent, tab);
 }
 
 void SettingsDialog::populateSceneComboBox(QComboBox *combo, bool allowEmpty)
