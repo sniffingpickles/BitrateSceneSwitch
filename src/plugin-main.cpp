@@ -52,6 +52,8 @@ static void frontend_event_callback(enum obs_frontend_event event, void *data)
         g_switcher->onSceneChanged();
         break;
     case OBS_FRONTEND_EVENT_EXIT:
+        // Unregister WebSocket vendor while obs-websocket is still alive
+        BitrateSwitch::WebSocketVendor::instance().unregisterVendor();
         g_switcher->stop();
         break;
     default:
@@ -126,7 +128,12 @@ void obs_module_unload(void)
 {
     blog(LOG_INFO, "[BitrateSceneSwitch] Plugin unloading");
 
-    BitrateSwitch::WebSocketVendor::instance().unregisterVendor();
+    // Clear vendor pointers first to prevent stale callbacks
+    auto &wsVendor = BitrateSwitch::WebSocketVendor::instance();
+    wsVendor.setSwitcher(nullptr);
+    wsVendor.setConfig(nullptr);
+    // Note: unregisterVendor() is called in OBS_FRONTEND_EVENT_EXIT
+    // to avoid crash when obs-websocket is already unloaded
 
     obs_frontend_remove_event_callback(frontend_event_callback, nullptr);
     obs_frontend_remove_save_callback(save_callback, nullptr);

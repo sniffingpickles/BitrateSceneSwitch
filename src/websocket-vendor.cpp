@@ -16,7 +16,10 @@ WebSocketVendor::WebSocketVendor()
 
 WebSocketVendor::~WebSocketVendor()
 {
-    unregisterVendor();
+    // Do NOT call unregisterVendor() here.
+    // Static instance destructor runs during static destruction,
+    // after obs-websocket is already torn down. Unregistration is
+    // handled in OBS_FRONTEND_EVENT_EXIT instead.
 }
 
 WebSocketVendor& WebSocketVendor::instance()
