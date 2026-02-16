@@ -35,7 +35,15 @@ jobs:
           arch: 'win64_msvc2019_64'
           cache: true
 
+      - name: Cache OBS Studio source
+        id: cache-obs
+        uses: actions/cache@v4
+        with:
+          path: obs-studio
+          key: obs-studio-${{ env.OBS_VERSION }}
+
       - name: Clone OBS Studio
+        if: steps.cache-obs.outputs.cache-hit != 'true'
         shell: pwsh
         run: |
           git clone --depth 1 --branch ${{ env.OBS_VERSION }} https://github.com/obsproject/obs-studio.git obs-studio
@@ -43,24 +51,46 @@ jobs:
           git submodule update --init --recursive --depth 1
           cd ..
 
+      - name: Cache OBS deps
+        id: cache-deps
+        uses: actions/cache@v4
+        with:
+          path: obs-deps
+          key: obs-deps-2025-08-23-x64
+
       - name: Download OBS deps
+        if: steps.cache-deps.outputs.cache-hit != 'true'
         shell: pwsh
         run: |
-          # Download OBS deps - using latest available release
           $depsUrl = "https://github.com/obsproject/obs-deps/releases/download/2025-08-23/windows-deps-2025-08-23-x64.zip"
           Invoke-WebRequest -Uri $depsUrl -OutFile deps.zip
           Expand-Archive deps.zip -DestinationPath obs-deps
-          
+
+      - name: Cache CURL
+        id: cache-curl
+        uses: actions/cache@v4
+        with:
+          path: curl
+          key: curl-8.6.0-win64
+
       - name: Download pre-built CURL
+        if: steps.cache-curl.outputs.cache-hit != 'true'
         shell: pwsh
         run: |
-          # Download curl from official Windows builds
           $curlUrl = "https://curl.se/windows/dl-8.6.0_1/curl-8.6.0_1-win64-mingw.zip"
           Invoke-WebRequest -Uri $curlUrl -OutFile curl.zip
           Expand-Archive curl.zip -DestinationPath curl-download
           Move-Item curl-download/curl-* curl
 
+      - name: Cache OBS build
+        id: cache-obs-build
+        uses: actions/cache@v4
+        with:
+          path: obs-studio/build
+          key: obs-build-${{ env.OBS_VERSION }}-msvc-release
+
       - name: Build OBS Libraries
+        if: steps.cache-obs-build.outputs.cache-hit != 'true'
         shell: pwsh
         run: |
           cd obs-studio
