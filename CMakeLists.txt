@@ -45,6 +45,12 @@ add_library(${PROJECT_NAME} MODULE
     src/servers/nms.hpp
     src/servers/nimble.cpp
     src/servers/nimble.hpp
+    src/servers/rist.cpp
+    src/servers/rist.hpp
+    src/servers/openirl.cpp
+    src/servers/openirl.hpp
+    src/servers/xiu.cpp
+    src/servers/xiu.hpp
     src/chat-client.cpp
     src/chat-client.hpp
     src/update-checker.cpp

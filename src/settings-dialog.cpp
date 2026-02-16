@@ -481,6 +481,30 @@ void SettingsDialog::setupAdvancedTab(QWidget *tab)
     form->addRow(switchFromStartingCheckbox_);
     
     layout->addWidget(group);
+
+    // RIST stale frame fix
+    QGroupBox *ristGroup = new QGroupBox("RIST Stale Frame Fix", content);
+    QFormLayout *ristForm = new QFormLayout(ristGroup);
+
+    ristStaleFrameFixSpinBox_ = new QSpinBox(content);
+    ristStaleFrameFixSpinBox_->setRange(0, 300);
+    ristStaleFrameFixSpinBox_->setValue(0);
+    ristStaleFrameFixSpinBox_->setSuffix(" sec");
+    ristStaleFrameFixSpinBox_->setToolTip(
+        "When the stream goes offline, automatically run a media source fix after this many seconds "
+        "to clear the frozen last frame that RIST leaves behind. Set to 0 to disable.");
+
+    QLabel *ristHint = new QLabel(
+        "RIST encoders leave a single frozen frame on the media source when the stream stops. "
+        "This setting will automatically refresh the media source after the configured delay "
+        "once the stream goes offline, clearing that stale frame.", content);
+    ristHint->setWordWrap(true);
+    ristHint->setStyleSheet("QLabel { color: #a6adc8; font-size: 11px; padding: 4px; }");
+
+    ristForm->addRow("Auto-Fix Delay:", ristStaleFrameFixSpinBox_);
+    ristForm->addRow(ristHint);
+
+    layout->addWidget(ristGroup);
     layout->addStretch();
     wrapInScrollArea(content, tab);
 }
@@ -744,6 +768,7 @@ void SettingsDialog::loadSettings()
     recordWhileStreamingCheckbox_->setChecked(config_->options.recordWhileStreaming);
     switchToStartingCheckbox_->setChecked(config_->options.switchToStartingOnStreamStart);
     switchFromStartingCheckbox_->setChecked(config_->options.switchFromStartingToLive);
+    ristStaleFrameFixSpinBox_->setValue(config_->options.ristStaleFrameFixSec);
 
     // Load servers
     serverTable_->setRowCount(0);
@@ -756,9 +781,22 @@ void SettingsDialog::loadSettings()
         serverTable_->setCellWidget(row, 0, enabledCheck);
 
         QComboBox *typeCombo = new QComboBox();
-        typeCombo->addItems({"BELABOX", "NGINX", "SRT Live Server", "MediaMTX", 
-                            "Node Media Server", "Nimble", "RIST", "OpenIRL", "IRLHosting", "Xiu"});
-        typeCombo->setCurrentIndex(static_cast<int>(server.type));
+        typeCombo->addItem("BELABOX", static_cast<int>(ServerType::Belabox));
+        typeCombo->addItem("NGINX", static_cast<int>(ServerType::Nginx));
+        typeCombo->addItem("SRT Live Server", static_cast<int>(ServerType::SrtLiveServer));
+        typeCombo->addItem("MediaMTX", static_cast<int>(ServerType::Mediamtx));
+        typeCombo->addItem("Node Media Server", static_cast<int>(ServerType::NodeMediaServer));
+        typeCombo->addItem("Nimble", static_cast<int>(ServerType::Nimble));
+        typeCombo->addItem("RIST", static_cast<int>(ServerType::Rist));
+        typeCombo->addItem("OpenIRL", static_cast<int>(ServerType::OpenIRL));
+        typeCombo->addItem("Xiu", static_cast<int>(ServerType::Xiu));
+        // Select the matching entry by ServerType data value
+        for (int i = 0; i < typeCombo->count(); i++) {
+            if (typeCombo->itemData(i).toInt() == static_cast<int>(server.type)) {
+                typeCombo->setCurrentIndex(i);
+                break;
+            }
+        }
         serverTable_->setCellWidget(row, 1, typeCombo);
 
         serverTable_->setItem(row, 2, new QTableWidgetItem(QString::fromStdString(server.name)));
@@ -838,6 +876,7 @@ void SettingsDialog::saveSettings()
     config_->options.recordWhileStreaming = recordWhileStreamingCheckbox_->isChecked();
     config_->options.switchToStartingOnStreamStart = switchToStartingCheckbox_->isChecked();
     config_->options.switchFromStartingToLive = switchFromStartingCheckbox_->isChecked();
+    config_->options.ristStaleFrameFixSec = ristStaleFrameFixSpinBox_->value();
 
     // Save servers
     config_->servers.clear();
@@ -848,7 +887,7 @@ void SettingsDialog::saveSettings()
         server.enabled = enabledCheck ? enabledCheck->isChecked() : true;
 
         QComboBox *typeCombo = qobject_cast<QComboBox*>(serverTable_->cellWidget(row, 1));
-        server.type = typeCombo ? static_cast<ServerType>(typeCombo->currentIndex()) : ServerType::Belabox;
+        server.type = typeCombo ? static_cast<ServerType>(typeCombo->currentData().toInt()) : ServerType::Belabox;
 
         QTableWidgetItem *nameItem = serverTable_->item(row, 2);
         server.name = nameItem ? nameItem->text().toStdString() : "";
@@ -923,8 +962,15 @@ void SettingsDialog::onAddServer()
     serverTable_->setCellWidget(row, 0, enabledCheck);
 
     QComboBox *typeCombo = new QComboBox();
-    typeCombo->addItems({"BELABOX", "NGINX", "SRT Live Server", "MediaMTX", 
-                        "Node Media Server", "Nimble", "RIST", "OpenIRL", "IRLHosting", "Xiu"});
+    typeCombo->addItem("BELABOX", static_cast<int>(ServerType::Belabox));
+    typeCombo->addItem("NGINX", static_cast<int>(ServerType::Nginx));
+    typeCombo->addItem("SRT Live Server", static_cast<int>(ServerType::SrtLiveServer));
+    typeCombo->addItem("MediaMTX", static_cast<int>(ServerType::Mediamtx));
+    typeCombo->addItem("Node Media Server", static_cast<int>(ServerType::NodeMediaServer));
+    typeCombo->addItem("Nimble", static_cast<int>(ServerType::Nimble));
+    typeCombo->addItem("RIST", static_cast<int>(ServerType::Rist));
+    typeCombo->addItem("OpenIRL", static_cast<int>(ServerType::OpenIRL));
+    typeCombo->addItem("Xiu", static_cast<int>(ServerType::Xiu));
     serverTable_->setCellWidget(row, 1, typeCombo);
 
     serverTable_->setItem(row, 2, new QTableWidgetItem("New Server"));

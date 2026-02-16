@@ -106,6 +106,7 @@ obs_data_t *Config::save()
     obs_data_set_bool(data, "record_while_streaming", options.recordWhileStreaming);
     obs_data_set_bool(data, "switch_to_starting", options.switchToStartingOnStreamStart);
     obs_data_set_bool(data, "switch_from_starting", options.switchFromStartingToLive);
+    obs_data_set_int(data, "rist_stale_frame_fix_sec", options.ristStaleFrameFixSec);
 
     // Stream servers
     obs_data_array_t *serversArray = obs_data_array_create();
@@ -237,6 +238,7 @@ void Config::load(obs_data_t *data)
     options.recordWhileStreaming = obs_data_get_bool(data, "record_while_streaming");
     options.switchToStartingOnStreamStart = obs_data_get_bool(data, "switch_to_starting");
     options.switchFromStartingToLive = obs_data_get_bool(data, "switch_from_starting");
+    options.ristStaleFrameFixSec = static_cast<uint32_t>(obs_data_get_int(data, "rist_stale_frame_fix_sec"));
 
     // Stream servers
     servers.clear();

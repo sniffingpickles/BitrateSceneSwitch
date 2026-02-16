@@ -47,6 +47,7 @@ NginxServer::NginxServer(const StreamServerConfig &config)
     statsUrl_ = config.statsUrl;
     publisher_ = config.key;
     name_ = config.name;
+    overrideScenes_ = config.overrideScenes;
     
     size_t slashPos = publisher_.find('/');
     if (slashPos != std::string::npos) {
@@ -67,19 +68,36 @@ BitrateInfo NginxServer::fetchStats()
     std::string streamBlock = findStreamByName(response.body, publisher_);
     if (streamBlock.empty()) return info;
 
-    std::string bwInStr = extractXmlValue(streamBlock, "bw_in");
-    if (!bwInStr.empty()) {
-        int64_t bwBytes = std::stoll(bwInStr);
-        info.bitrateKbps = (bwBytes * 8) / 1000;
+    // Check if the stream has an <active/> tag (indicates actively publishing)
+    bool hasActive = streamBlock.find("<active") != std::string::npos;
+    if (!hasActive) return info;
+
+    // Use bw_video (bits/s) converted to kbps, matching NOALBS behavior
+    std::string bwVideoStr = extractXmlValue(streamBlock, "bw_video");
+    if (!bwVideoStr.empty()) {
+        try {
+            int64_t bwVideo = std::stoll(bwVideoStr);
+            info.bitrateKbps = bwVideo / 1024;
+        } catch (...) {
+            info.bitrateKbps = 0;
+        }
     }
 
-    info.isOnline = info.bitrateKbps > 0;
+    info.isOnline = true;
     return info;
 }
 
 SwitchType NginxServer::checkSwitch(const Triggers &triggers)
 {
     BitrateInfo info = fetchStats();
+
+    if (!info.isOnline)
+        return SwitchType::Offline;
+
+    // NGINX: bitrate 0 with active stream means just started, return Previous
+    if (info.bitrateKbps == 0)
+        return SwitchType::Previous;
+
     return evaluateTriggers(info, triggers);
 }
 

@@ -100,6 +100,12 @@ private:
     bool wasOnStartingScene_ = false;
 
     BitrateInfo lastBitrateInfo_;
+
+    // RIST stale frame fix
+    bool ristFixPending_ = false;
+    bool hasBeenOnline_ = false;  // Only trigger RIST fix after stream was actually online
+    std::chrono::steady_clock::time_point ristFixTriggerTime_;
+    void handleRistStaleFrameFix();
 };
 
 } // namespace BitrateSwitch

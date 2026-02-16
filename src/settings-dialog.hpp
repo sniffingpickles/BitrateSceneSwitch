@@ -79,6 +79,7 @@ private:
     QCheckBox *recordWhileStreamingCheckbox_;
     QCheckBox *switchToStartingCheckbox_;
     QCheckBox *switchFromStartingCheckbox_;
+    QSpinBox *ristStaleFrameFixSpinBox_;
 
     // Server list
     QTableWidget *serverTable_;

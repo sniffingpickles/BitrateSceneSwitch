@@ -51,4 +51,82 @@ HttpResponse HttpClient::get(const std::string &url, int timeoutMs)
     return response;
 }
 
+HttpResponse HttpClient::get(const std::string &url, const std::string &authHeader, int timeoutMs)
+{
+    HttpResponse response;
+    
+    CURL *curl = curl_easy_init();
+    if (!curl) {
+        blog(LOG_ERROR, "[BitrateSceneSwitch] Failed to initialize CURL");
+        return response;
+    }
+
+    struct curl_slist *headers = nullptr;
+    if (!authHeader.empty()) {
+        std::string header = "Authorization: " + authHeader;
+        headers = curl_slist_append(headers, header.c_str());
+        curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+    }
+
+    curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, writeCallback);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response.body);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, timeoutMs);
+    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT_MS, timeoutMs / 2);
+    curl_easy_setopt(curl, CURLOPT_USERAGENT, "BitrateSceneSwitch/1.0");
+    curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
+
+    CURLcode res = curl_easy_perform(curl);
+    
+    if (res == CURLE_OK) {
+        curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &response.statusCode);
+        response.success = (response.statusCode >= 200 && response.statusCode < 300);
+    }
+
+    if (headers) curl_slist_free_all(headers);
+    curl_easy_cleanup(curl);
+    return response;
+}
+
+HttpResponse HttpClient::post(const std::string &url, const std::string &body,
+                              const std::string &contentType, int timeoutMs)
+{
+    HttpResponse response;
+    
+    CURL *curl = curl_easy_init();
+    if (!curl) {
+        blog(LOG_ERROR, "[BitrateSceneSwitch] Failed to initialize CURL");
+        return response;
+    }
+
+    struct curl_slist *headers = nullptr;
+    std::string ctHeader = "Content-Type: " + contentType;
+    headers = curl_slist_append(headers, ctHeader.c_str());
+
+    curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+    curl_easy_setopt(curl, CURLOPT_POST, 1L);
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body.c_str());
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, static_cast<long>(body.size()));
+    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, writeCallback);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response.body);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, timeoutMs);
+    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT_MS, timeoutMs / 2);
+    curl_easy_setopt(curl, CURLOPT_USERAGENT, "BitrateSceneSwitch/1.0");
+    curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
+
+    CURLcode res = curl_easy_perform(curl);
+    
+    if (res == CURLE_OK) {
+        curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &response.statusCode);
+        response.success = (response.statusCode >= 200 && response.statusCode < 300);
+    }
+
+    curl_slist_free_all(headers);
+    curl_easy_cleanup(curl);
+    return response;
+}
+
 } // namespace BitrateSwitch

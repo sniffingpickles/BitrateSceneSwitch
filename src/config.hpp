@@ -79,6 +79,7 @@ struct OptionalOptions {
     bool recordWhileStreaming = false;         // Auto-record when streaming
     bool switchToStartingOnStreamStart = false; // Switch to starting scene on stream start
     bool switchFromStartingToLive = false;     // Auto-switch from starting to live when feed detected
+    uint32_t ristStaleFrameFixSec = 0;        // Auto-fix media sources after X seconds offline to clear RIST stale frame (0 = disabled)
 };
 
 // Message templates for chat announcements

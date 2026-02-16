@@ -136,6 +136,9 @@ void Switcher::switcherThread()
         if (config_->onlyWhenStreaming && !isStreaming_)
             continue;
 
+        // Handle RIST stale frame fix timer (runs regardless of scene switchability)
+        handleRistStaleFrameFix();
+
         std::string current = getCurrentScene();
         if (!isSceneSwitchable(current))
             continue;
@@ -241,6 +244,39 @@ void Switcher::doSwitchCheck()
 
     switchToScene(targetScene);
     announceSceneChange(currentSwitchType);
+}
+
+void Switcher::handleRistStaleFrameFix()
+{
+    if (config_->options.ristStaleFrameFixSec == 0)
+        return;
+
+    if (prevSwitchType_ == SwitchType::Offline) {
+        // Only start the timer if the stream was previously online
+        // (avoids spurious fix on initial startup when prevSwitchType_ defaults to Offline)
+        if (!hasBeenOnline_)
+            return;
+
+        if (!ristFixPending_) {
+            // Stream just went offline — start the timer
+            ristFixPending_ = true;
+            ristFixTriggerTime_ = std::chrono::steady_clock::now();
+        } else {
+            // Check if enough time has elapsed
+            auto elapsed = std::chrono::steady_clock::now() - ristFixTriggerTime_;
+            auto delaySec = std::chrono::seconds(config_->options.ristStaleFrameFixSec);
+            if (elapsed >= delaySec) {
+                blog(LOG_INFO, "[BitrateSceneSwitch] RIST stale frame fix: refreshing media sources after %u sec offline",
+                     config_->options.ristStaleFrameFixSec);
+                fixMediaSources();
+                ristFixPending_ = false;  // Only fire once per offline period
+            }
+        }
+    } else {
+        // Stream is online — mark that we've been online and cancel any pending fix
+        hasBeenOnline_ = true;
+        ristFixPending_ = false;
+    }
 }
 
 void Switcher::handleOfflineTimeout()

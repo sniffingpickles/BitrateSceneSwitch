@@ -6,6 +6,9 @@
 #include "servers/mediamtx.hpp"
 #include "servers/nms.hpp"
 #include "servers/nimble.hpp"
+#include "servers/rist.hpp"
+#include "servers/openirl.hpp"
+#include "servers/xiu.hpp"
 #include <obs-module.h>
 
 namespace BitrateSwitch {
@@ -53,11 +56,13 @@ std::unique_ptr<StreamServer> StreamServer::create(const StreamServerConfig &con
     case ServerType::Nimble:
         return std::make_unique<NimbleServer>(config);
     case ServerType::Rist:
+        return std::make_unique<RistServer>(config);
     case ServerType::OpenIRL:
+        return std::make_unique<OpenIRLServer>(config);
     case ServerType::IrlHosting:
+        return std::make_unique<SlsServer>(config);
     case ServerType::Xiu:
-        // These use similar stats format to Belabox/SLS
-        return std::make_unique<BelaboxServer>(config);
+        return std::make_unique<XiuServer>(config);
     default:
         blog(LOG_WARNING, "[BitrateSceneSwitch] Unknown server type %d, using Belabox", 
              static_cast<int>(config.type));

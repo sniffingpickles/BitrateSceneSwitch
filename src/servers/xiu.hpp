@@ -4,17 +4,17 @@
 
 namespace BitrateSwitch {
 
-class SlsServer : public StreamServer {
+class XiuServer : public StreamServer {
 public:
-    explicit SlsServer(const StreamServerConfig &config);
-    ~SlsServer() override = default;
+    explicit XiuServer(const StreamServerConfig &config);
+    ~XiuServer() override = default;
 
     SwitchType checkSwitch(const Triggers &triggers) override;
     BitrateInfo getBitrate() override;
+    std::string getSourceInfo() override;
 
 private:
     BitrateInfo fetchStats();
-    std::string apiKey_;
 };
 
 } // namespace BitrateSwitch
