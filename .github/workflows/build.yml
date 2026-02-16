@@ -157,6 +157,8 @@ jobs:
     needs: [build-windows]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
+    permissions:
+      contents: write
     
     steps:
       - name: Download Artifacts
@@ -170,7 +172,7 @@ jobs:
           zip -r ../../${{ env.PLUGIN_NAME }}-${{ github.ref_name }}-windows-x64.zip .
 
       - name: Create Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           files: |
             ${{ env.PLUGIN_NAME }}-${{ github.ref_name }}-windows-x64.zip
