@@ -424,6 +424,7 @@ void SettingsDialog::setupServersTab(QWidget *tab)
     serverTable_->setColumnWidth(2, 100);
     serverTable_->setColumnWidth(4, 120);
     serverTable_->setColumnWidth(5, 60);
+    serverTable_->verticalHeader()->setDefaultSectionSize(serverTable_->verticalHeader()->defaultSectionSize() + 15);
     serverTable_->setSelectionBehavior(QAbstractItemView::SelectRows);
     serverTable_->setSelectionMode(QAbstractItemView::SingleSelection);
     layout->addWidget(serverTable_);
