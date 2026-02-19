@@ -242,8 +242,11 @@ void Switcher::doSwitchCheck()
         return;
     }
 
-    switchToScene(targetScene);
-    announceSceneChange(currentSwitchType);
+    // Only switch and announce if we're not already on the target scene
+    if (getCurrentScene() != targetScene) {
+        switchToScene(targetScene);
+        announceSceneChange(currentSwitchType);
+    }
 }
 
 void Switcher::handleRistStaleFrameFix()
