@@ -480,54 +480,49 @@ void Switcher::refreshScene()
 
 void Switcher::fixMediaSources()
 {
-    // Get current scene and refresh all media sources with RTMP/SRT/UDP/RIST/RTSP inputs
-    obs_source_t *currentSceneSource = obs_frontend_get_current_scene();
-    if (!currentSceneSource) return;
-    
-    obs_scene_t *scene = obs_scene_from_source(currentSceneSource);
-    if (!scene) {
-        obs_source_release(currentSceneSource);
-        return;
-    }
-    
-    // Enumerate scene items and refresh media sources
-    obs_scene_enum_items(scene, [](obs_scene_t*, obs_sceneitem_t *item, void*) -> bool {
-        obs_source_t *source = obs_sceneitem_get_source(item);
-        if (!source) return true;
-        
+    // Enumerate all sources globally — not just the current scene — so we
+    // catch RIST/SRT feeds that live on LIVE or LOW while BRB is showing.
+    obs_enum_sources([](void*, obs_source_t *source) -> bool {
         const char *sourceId = obs_source_get_id(source);
         if (!sourceId) return true;
-        
-        // Check if it's a media source (ffmpeg_source or vlc_source)
-        if (strcmp(sourceId, "ffmpeg_source") == 0 || strcmp(sourceId, "vlc_source") == 0) {
-            obs_data_t *settings = obs_source_get_settings(source);
-            if (settings) {
-                const char *input = obs_data_get_string(settings, "input");
-                if (input && input[0] != '\0') {
-                    std::string inputStr = input;
-                    std::transform(inputStr.begin(), inputStr.end(), inputStr.begin(), ::tolower);
-                    
-                    // Match streaming protocol prefixes (consistent with NOALBS)
-                    bool isStreamSource =
-                        inputStr.rfind("rtmp", 0) == 0 ||
-                        inputStr.rfind("srt", 0) == 0 ||
-                        inputStr.rfind("udp", 0) == 0 ||
-                        inputStr.rfind("rist", 0) == 0 ||
-                        inputStr.rfind("rtsp", 0) == 0;
-                    
-                    if (isStreamSource) {
-                        obs_source_update(source, settings);
-                        blog(LOG_INFO, "[BitrateSceneSwitch] Fix: refreshed media source: %s", 
-                             obs_source_get_name(source));
-                    }
-                }
-                obs_data_release(settings);
-            }
+
+        if (strcmp(sourceId, "ffmpeg_source") != 0 &&
+            strcmp(sourceId, "vlc_source") != 0)
+            return true;
+
+        obs_data_t *settings = obs_source_get_settings(source);
+        if (!settings) return true;
+
+        const char *input = obs_data_get_string(settings, "input");
+        if (!input || input[0] == '\0') {
+            obs_data_release(settings);
+            return true;
+        }
+
+        std::string inputStr = input;
+        obs_data_release(settings);
+        std::transform(inputStr.begin(), inputStr.end(), inputStr.begin(), ::tolower);
+
+        // Match streaming protocol prefixes (consistent with NOALBS)
+        bool isStreamSource =
+            inputStr.rfind("rtmp", 0) == 0 ||
+            inputStr.rfind("srt", 0) == 0 ||
+            inputStr.rfind("udp", 0) == 0 ||
+            inputStr.rfind("rist", 0) == 0 ||
+            inputStr.rfind("rtsp", 0) == 0;
+
+        if (isStreamSource) {
+            // Use media_restart instead of obs_source_update to avoid a
+            // full avformat teardown/reinit cycle.  The heavy-handed
+            // update path triggers a race in librist that can NULL-deref
+            // inside init_avformat on the mp_media_thread.
+            obs_source_media_restart(source);
+            blog(LOG_INFO, "[BitrateSceneSwitch] Fix: refreshed media source: %s",
+                 obs_source_get_name(source));
         }
         return true;
     }, nullptr);
-    
-    obs_source_release(currentSceneSource);
+
     blog(LOG_INFO, "[BitrateSceneSwitch] Fix: refreshed media sources");
 }
 

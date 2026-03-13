@@ -32,7 +32,7 @@ private:
     bool parseVersion(const std::string& version, int& major, int& minor, int& patch);
     bool isNewerVersion(const std::string& latest, const std::string& current);
     
-    static constexpr const char* CURRENT_VERSION = "1.0.4";
+    static constexpr const char* CURRENT_VERSION = "1.0.5";
     static constexpr const char* GITHUB_API_URL = "https://api.github.com/repos/sniffingpickles/BitrateSceneSwitch/releases/latest";
     
     std::thread checkThread_;
