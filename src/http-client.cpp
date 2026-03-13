@@ -5,12 +5,10 @@ namespace BitrateSwitch {
 
 HttpClient::HttpClient()
 {
-    curl_global_init(CURL_GLOBAL_DEFAULT);
 }
 
 HttpClient::~HttpClient()
 {
-    curl_global_cleanup();
 }
 
 size_t HttpClient::writeCallback(char *ptr, size_t size, size_t nmemb, void *userdata)

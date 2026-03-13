@@ -83,6 +83,7 @@ private:
     std::vector<std::unique_ptr<StreamServer>> servers_;
     
     std::thread switcherThread_;
+    std::thread refreshThread_;
     std::atomic<bool> running_{false};
     std::atomic<bool> isStreaming_{false};
     std::atomic<bool> isRecording_{false};
@@ -103,7 +104,8 @@ private:
 
     // RIST stale frame fix
     bool ristFixPending_ = false;
-    bool hasBeenOnline_ = false;  // Only trigger RIST fix after stream was actually online
+    bool ristFixFired_ = false;
+    bool hasBeenOnline_ = false;
     std::chrono::steady_clock::time_point ristFixTriggerTime_;
     void handleRistStaleFrameFix();
 };

@@ -6,6 +6,7 @@
 
 #include <obs-module.h>
 #include <obs-frontend-api.h>
+#include <curl/curl.h>
 
 #include "switcher.hpp"
 #include "config.hpp"
@@ -98,6 +99,8 @@ bool obs_module_load(void)
 {
     blog(LOG_INFO, "[BitrateSceneSwitch] Plugin loaded (version %s)", PLUGIN_VERSION);
 
+    curl_global_init(CURL_GLOBAL_DEFAULT);
+
     g_config = new BitrateSwitch::Config();
     g_switcher = new BitrateSwitch::Switcher(g_config);
 
@@ -139,7 +142,6 @@ void obs_module_unload(void)
     obs_frontend_remove_save_callback(save_callback, nullptr);
 
     if (g_switcher) {
-        g_switcher->stop();
         delete g_switcher;
         g_switcher = nullptr;
     }
@@ -148,4 +150,6 @@ void obs_module_unload(void)
         delete g_config;
         g_config = nullptr;
     }
+
+    curl_global_cleanup();
 }

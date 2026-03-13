@@ -67,7 +67,16 @@ bool ChatClient::connect()
     }
     
     freeaddrinfo(result);
-    
+
+    // Set recv timeout so the receive thread can check running_ periodically
+#ifdef _WIN32
+    DWORD rcvTimeout = 5000;
+    setsockopt(socket_, SOL_SOCKET, SO_RCVTIMEO, (const char *)&rcvTimeout, sizeof(rcvTimeout));
+#else
+    struct timeval rcvTimeout = {5, 0};
+    setsockopt(socket_, SOL_SOCKET, SO_RCVTIMEO, &rcvTimeout, sizeof(rcvTimeout));
+#endif
+
     std::string username = config_.botUsername.empty() ? config_.channel : config_.botUsername;
     std::transform(username.begin(), username.end(), username.begin(), ::tolower);
     
@@ -121,10 +130,17 @@ void ChatClient::receiveLoop()
     while (running_) {
         int received = recv(socket_, buffer, sizeof(buffer) - 1, 0);
         if (received <= 0) {
-            if (running_) {
-                blog(LOG_WARNING, "[BitrateSceneSwitch] Chat: Connection lost");
-                connected_ = false;
-            }
+            if (!running_)
+                break;
+#ifdef _WIN32
+            if (WSAGetLastError() == WSAETIMEDOUT)
+                continue;
+#else
+            if (errno == EAGAIN || errno == EWOULDBLOCK)
+                continue;
+#endif
+            blog(LOG_WARNING, "[BitrateSceneSwitch] Chat: Connection lost");
+            connected_ = false;
             break;
         }
         

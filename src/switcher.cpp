@@ -50,9 +50,10 @@ void Switcher::start()
 void Switcher::stop()
 {
     running_ = false;
-    if (switcherThread_.joinable()) {
+    if (switcherThread_.joinable())
         switcherThread_.join();
-    }
+    if (refreshThread_.joinable())
+        refreshThread_.join();
     blog(LOG_INFO, "[BitrateSceneSwitch] Switcher stopped");
 }
 
@@ -255,30 +256,27 @@ void Switcher::handleRistStaleFrameFix()
         return;
 
     if (prevSwitchType_ == SwitchType::Offline) {
-        // Only start the timer if the stream was previously online
-        // (avoids spurious fix on initial startup when prevSwitchType_ defaults to Offline)
-        if (!hasBeenOnline_)
+        if (!hasBeenOnline_ || ristFixFired_)
             return;
 
         if (!ristFixPending_) {
-            // Stream just went offline — start the timer
             ristFixPending_ = true;
             ristFixTriggerTime_ = std::chrono::steady_clock::now();
         } else {
-            // Check if enough time has elapsed
             auto elapsed = std::chrono::steady_clock::now() - ristFixTriggerTime_;
             auto delaySec = std::chrono::seconds(config_->options.ristStaleFrameFixSec);
             if (elapsed >= delaySec) {
                 blog(LOG_INFO, "[BitrateSceneSwitch] RIST stale frame fix: refreshing media sources after %u sec offline",
                      config_->options.ristStaleFrameFixSec);
                 fixMediaSources();
-                ristFixPending_ = false;  // Only fire once per offline period
+                ristFixPending_ = false;
+                ristFixFired_ = true;
             }
         }
     } else {
-        // Stream is online — mark that we've been online and cancel any pending fix
         hasBeenOnline_ = true;
         ristFixPending_ = false;
+        ristFixFired_ = false;
     }
 }
 
@@ -334,6 +332,9 @@ SwitchType Switcher::getOnlineServerStatus(StreamServer** activeServer)
 
 void Switcher::switchToScene(const std::string &sceneName)
 {
+    if (!running_)
+        return;
+
     std::string current = getCurrentScene();
     
     if (current == sceneName)
@@ -460,19 +461,18 @@ void Switcher::refreshScene()
         switchToScene(config_->optionalScenes.refresh);
         blog(LOG_INFO, "[BitrateSceneSwitch] Refresh: switching to refresh scene");
         
-        // Capture running_ flag by reference to check if switcher is still alive.
-        // The thread will bail out early if the switcher is shutting down.
-        std::atomic<bool> &runningRef = running_;
-        std::thread([this, previousScene, &runningRef]() {
-            for (int i = 0; i < 50 && runningRef; ++i) {
+        if (refreshThread_.joinable())
+            refreshThread_.join();
+
+        refreshThread_ = std::thread([this, previousScene]() {
+            for (int i = 0; i < 50 && running_; ++i)
                 std::this_thread::sleep_for(std::chrono::milliseconds(100));
-            }
-            if (runningRef) {
+            if (running_) {
                 switchToScene(previousScene);
                 blog(LOG_INFO, "[BitrateSceneSwitch] Refresh: returned to scene: %s",
                      previousScene.c_str());
             }
-        }).detach();
+        });
     } else {
         fixMediaSources();
     }
