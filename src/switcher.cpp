@@ -50,6 +50,7 @@ void Switcher::start()
 void Switcher::stop()
 {
     running_ = false;
+    disconnectChat();
     if (switcherThread_.joinable())
         switcherThread_.join();
     if (refreshThread_.joinable())
@@ -581,16 +582,19 @@ bool Switcher::switchToSceneByName(const std::string& name)
 
 void Switcher::connectChat()
 {
-    if (!config_->chat.enabled) return;
-    
-    if (!chatClient_) {
-        chatClient_ = std::make_unique<ChatClient>();
-        chatClient_->setCommandCallback([this](const ChatMessage& msg) {
-            handleChatCommand(msg);
-        });
-    }
-    
+    if (!config_->chat.enabled)
+        return;
+
+    /* Tear down any existing connection first so we pick up
+       new credentials / channel without leaking the old socket. */
+    disconnectChat();
+
+    chatClient_ = std::make_unique<ChatClient>();
+    chatClient_->setCommandCallback([this](const ChatMessage &msg) {
+        handleChatCommand(msg);
+    });
     chatClient_->setConfig(config_->chat);
+
     if (chatClient_->connect()) {
         blog(LOG_INFO, "[BitrateSceneSwitch] Chat connected");
     }
@@ -600,6 +604,7 @@ void Switcher::disconnectChat()
 {
     if (chatClient_) {
         chatClient_->disconnect();
+        chatClient_.reset();
         blog(LOG_INFO, "[BitrateSceneSwitch] Chat disconnected");
     }
 }
@@ -636,6 +641,15 @@ void Switcher::handleChatCommand(const ChatMessage& msg)
         switchToBrb();
         announce(formatTemplate(config_->messages.sceneSwitched, config_->scenes.offline));
         break;
+    case ChatCommand::Privacy:
+        if (config_->optionalScenes.privacy.empty()) {
+            reply("No privacy scene configured");
+        } else {
+            switchToPrivacy();
+            announce(formatTemplate(config_->messages.sceneSwitched,
+                                    config_->optionalScenes.privacy));
+        }
+        break;
     case ChatCommand::Refresh:
         refreshScene();
         announce(formatTemplate(config_->messages.refreshing));
@@ -656,7 +670,7 @@ void Switcher::handleChatCommand(const ChatMessage& msg)
         break;
     case ChatCommand::SwitchScene:
         if (msg.args.empty()) {
-            reply("Usage: !ss <scene_name>");
+            reply("Usage: " + config_->chat.cmdSwitchScene + " <scene_name>");
         } else if (switchToSceneByName(msg.args)) {
             announce(formatTemplate(config_->messages.sceneSwitched, msg.args));
         } else {

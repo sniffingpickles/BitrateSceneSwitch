@@ -30,13 +30,14 @@ enum class ChatCommand {
     Live,
     Low,
     Brb,
+    Privacy,
     Refresh,
     Status,
     Trigger,
     Fix,
-    SwitchScene,  // !ss <scene_name>
-    Start,        // Start streaming
-    Stop          // Stop streaming
+    SwitchScene,
+    Start,
+    Stop
 };
 
 struct ChatMessage {

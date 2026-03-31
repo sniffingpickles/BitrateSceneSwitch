@@ -1,6 +1,7 @@
 #include "settings-dialog.hpp"
 #include "switcher.hpp"
 
+#include <thread>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QGroupBox>
@@ -194,30 +195,41 @@ void SettingsDialog::setupUI()
     QWidget *serversTab = new QWidget();
     QWidget *advancedTab = new QWidget();
     QWidget *chatTab = new QWidget();
+    QWidget *commandsTab = new QWidget();
     QWidget *messagesTab = new QWidget();
-    
+
     setupGeneralTab(generalTab);
     setupTriggersTab(triggersTab);
     setupScenesTab(scenesTab);
     setupServersTab(serversTab);
     setupAdvancedTab(advancedTab);
     setupChatTab(chatTab);
+    setupCommandsTab(commandsTab);
     setupMessagesTab(messagesTab);
-    
+
     tabWidget_->addTab(generalTab, "General");
     tabWidget_->addTab(triggersTab, "Triggers");
     tabWidget_->addTab(scenesTab, "Scenes");
     tabWidget_->addTab(serversTab, "Servers");
     tabWidget_->addTab(chatTab, "Chat");
+    tabWidget_->addTab(commandsTab, "Commands");
     tabWidget_->addTab(messagesTab, "Messages");
     tabWidget_->addTab(advancedTab, "Advanced");
     
     mainLayout->addWidget(tabWidget_);
 
-    // Dialog buttons - custom styled
+    // Dialog buttons
     QHBoxLayout *btnLayout = new QHBoxLayout();
     btnLayout->addStretch();
-    
+
+    QPushButton *applyBtn = new QPushButton("Apply", this);
+    applyBtn->setStyleSheet(
+        "QPushButton { background-color: #89b4fa; color: #1e1e2e; border: none; padding: 10px 30px; font-size: 14px; }"
+        "QPushButton:hover { background-color: #74c7ec; }"
+        "QPushButton:pressed { background-color: #89dceb; }"
+    );
+    connect(applyBtn, &QPushButton::clicked, this, &SettingsDialog::onApply);
+
     QPushButton *saveBtn = new QPushButton("Save", this);
     saveBtn->setStyleSheet(
         "QPushButton { background-color: #a6e3a1; color: #1e1e2e; border: none; padding: 10px 30px; font-size: 14px; }"
@@ -225,7 +237,7 @@ void SettingsDialog::setupUI()
         "QPushButton:pressed { background-color: #74c7ec; }"
     );
     connect(saveBtn, &QPushButton::clicked, this, &SettingsDialog::onSave);
-    
+
     QPushButton *cancelBtn = new QPushButton("Cancel", this);
     cancelBtn->setStyleSheet(
         "QPushButton { background-color: #f38ba8; color: #1e1e2e; border: none; padding: 10px 30px; font-size: 14px; }"
@@ -233,7 +245,8 @@ void SettingsDialog::setupUI()
         "QPushButton:pressed { background-color: #f2cdcd; }"
     );
     connect(cancelBtn, &QPushButton::clicked, this, &QDialog::reject);
-    
+
+    btnLayout->addWidget(applyBtn);
     btnLayout->addWidget(saveBtn);
     btnLayout->addWidget(cancelBtn);
     mainLayout->addLayout(btnLayout);
@@ -440,20 +453,13 @@ void SettingsDialog::setupServersTab(QWidget *tab)
         "QPushButton { background-color: #f38ba8; color: #1e1e2e; border: none; padding: 8px 18px; }"
         "QPushButton:hover { background-color: #eba0ac; }"
     );
-    testBtn_ = new QPushButton("Test Connection", content);
-    testBtn_->setStyleSheet(
-        "QPushButton { background-color: #89b4fa; color: #1e1e2e; border: none; padding: 8px 18px; }"
-        "QPushButton:hover { background-color: #74c7ec; }"
-    );
     btnLayout->addWidget(addServerBtn_);
     btnLayout->addWidget(removeServerBtn_);
-    btnLayout->addWidget(testBtn_);
     btnLayout->addStretch();
     layout->addLayout(btnLayout);
 
     connect(addServerBtn_, &QPushButton::clicked, this, &SettingsDialog::onAddServer);
     connect(removeServerBtn_, &QPushButton::clicked, this, &SettingsDialog::onRemoveServer);
-    connect(testBtn_, &QPushButton::clicked, this, &SettingsDialog::onTestConnection);
     wrapInScrollArea(content, tab);
 }
 
@@ -563,20 +569,82 @@ void SettingsDialog::setupChatTab(QWidget *tab)
     layout->addWidget(permGroup);
     
     // Available commands info
-    QGroupBox *cmdGroup = new QGroupBox("Available Commands", content);
+    QGroupBox *cmdGroup = new QGroupBox("Default Commands", content);
     QVBoxLayout *cmdLayout = new QVBoxLayout(cmdGroup);
     QLabel *cmdLabel = new QLabel(
-        "• !live - Switch to Live scene\n"
-        "• !low - Switch to Low scene\n"
-        "• !brb - Switch to BRB/Offline scene\n"
-        "• !ss <name> - Switch to any scene (case-insensitive)\n"
-        "• !refresh - Refresh scene (fix issues)\n"
-        "• !status - Show current status\n"
-        "• !trigger - Force switch check\n"
-        "• !fix - Alias for refresh", content);
+        "Default chat commands (customizable in the Commands tab):\n"
+        "  !live  - Switch to Live scene\n"
+        "  !low   - Switch to Low scene\n"
+        "  !brb   - Switch to BRB/Offline scene\n"
+        "  !privacy - Switch to Privacy scene\n"
+        "  !ss <name> - Switch to any scene by name (!s also available)\n"
+        "  !refresh - Refresh scene (fix issues)\n"
+        "  !fix   - Refresh media sources\n"
+        "  !status - Show current bitrate/status\n"
+        "  !trigger - Force a switch check\n"
+        "  !start - Start streaming\n"
+        "  !stop  - Stop streaming", content);
     cmdLayout->addWidget(cmdLabel);
     
     layout->addWidget(cmdGroup);
+    layout->addStretch();
+    wrapInScrollArea(content, tab);
+}
+
+void SettingsDialog::setupCommandsTab(QWidget *tab)
+{
+    QWidget *content = new QWidget();
+    QVBoxLayout *layout = new QVBoxLayout(content);
+
+    QLabel *hint = new QLabel(
+        "Customize the chat command triggers. Each field sets the word "
+        "that users type in chat to invoke the corresponding action.",
+        content);
+    hint->setWordWrap(true);
+    hint->setStyleSheet("QLabel { color: #a6adc8; font-size: 11px; padding: 4px; }");
+    layout->addWidget(hint);
+
+    QGroupBox *sceneGroup = new QGroupBox("Scene Commands", content);
+    QFormLayout *sceneForm = new QFormLayout(sceneGroup);
+    sceneForm->setVerticalSpacing(10);
+    sceneForm->setContentsMargins(12, 24, 12, 12);
+
+    cmdLiveEdit_ = new QLineEdit(content);
+    cmdLowEdit_ = new QLineEdit(content);
+    cmdBrbEdit_ = new QLineEdit(content);
+    cmdPrivacyEdit_ = new QLineEdit(content);
+    cmdSwitchSceneCombo_ = new QComboBox(content);
+    cmdSwitchSceneCombo_->addItem("!ss", "!ss");
+    cmdSwitchSceneCombo_->addItem("!s", "!s");
+    cmdSwitchSceneCombo_->setToolTip("Switch to any scene by name (e.g. !ss LIVE)");
+
+    sceneForm->addRow("Live:", cmdLiveEdit_);
+    sceneForm->addRow("Low:", cmdLowEdit_);
+    sceneForm->addRow("BRB / Offline:", cmdBrbEdit_);
+    sceneForm->addRow("Privacy:", cmdPrivacyEdit_);
+    sceneForm->addRow("Switch Scene:", cmdSwitchSceneCombo_);
+    layout->addWidget(sceneGroup);
+
+    QGroupBox *actionGroup = new QGroupBox("Action Commands", content);
+    QFormLayout *actionForm = new QFormLayout(actionGroup);
+    actionForm->setVerticalSpacing(10);
+    actionForm->setContentsMargins(12, 24, 12, 12);
+
+    cmdRefreshEdit_ = new QLineEdit(content);
+    cmdStatusEdit_ = new QLineEdit(content);
+    cmdTriggerEdit_ = new QLineEdit(content);
+    cmdFixEdit_ = new QLineEdit(content);
+    cmdStartEdit_ = new QLineEdit(content);
+    cmdStopEdit_ = new QLineEdit(content);
+
+    actionForm->addRow("Refresh:", cmdRefreshEdit_);
+    actionForm->addRow("Status:", cmdStatusEdit_);
+    actionForm->addRow("Trigger:", cmdTriggerEdit_);
+    actionForm->addRow("Fix:", cmdFixEdit_);
+    actionForm->addRow("Start Stream:", cmdStartEdit_);
+    actionForm->addRow("Stop Stream:", cmdStopEdit_);
+    layout->addWidget(actionGroup);
+
     layout->addStretch();
     wrapInScrollArea(content, tab);
 }
@@ -825,6 +893,20 @@ void SettingsDialog::loadSettings()
     }
     chatAdminsEdit_->setText(adminsStr);
 
+    // Load command overrides
+    cmdLiveEdit_->setText(QString::fromStdString(config_->chat.cmdLive));
+    cmdLowEdit_->setText(QString::fromStdString(config_->chat.cmdLow));
+    cmdBrbEdit_->setText(QString::fromStdString(config_->chat.cmdBrb));
+    cmdPrivacyEdit_->setText(QString::fromStdString(config_->chat.cmdPrivacy));
+    cmdRefreshEdit_->setText(QString::fromStdString(config_->chat.cmdRefresh));
+    cmdStatusEdit_->setText(QString::fromStdString(config_->chat.cmdStatus));
+    cmdTriggerEdit_->setText(QString::fromStdString(config_->chat.cmdTrigger));
+    cmdFixEdit_->setText(QString::fromStdString(config_->chat.cmdFix));
+    int ssIdx = cmdSwitchSceneCombo_->findData(QString::fromStdString(config_->chat.cmdSwitchScene));
+    cmdSwitchSceneCombo_->setCurrentIndex(ssIdx >= 0 ? ssIdx : 0);
+    cmdStartEdit_->setText(QString::fromStdString(config_->chat.cmdStart));
+    cmdStopEdit_->setText(QString::fromStdString(config_->chat.cmdStop));
+
     // Load message templates
     msgSwitchedLiveEdit_->setText(QString::fromStdString(config_->messages.switchedToLive));
     msgSwitchedLowEdit_->setText(QString::fromStdString(config_->messages.switchedToLow));
@@ -924,6 +1006,19 @@ void SettingsDialog::saveSettings()
         }
     }
 
+    // Save command overrides
+    config_->chat.cmdLive = cmdLiveEdit_->text().toStdString();
+    config_->chat.cmdLow = cmdLowEdit_->text().toStdString();
+    config_->chat.cmdBrb = cmdBrbEdit_->text().toStdString();
+    config_->chat.cmdPrivacy = cmdPrivacyEdit_->text().toStdString();
+    config_->chat.cmdRefresh = cmdRefreshEdit_->text().toStdString();
+    config_->chat.cmdStatus = cmdStatusEdit_->text().toStdString();
+    config_->chat.cmdTrigger = cmdTriggerEdit_->text().toStdString();
+    config_->chat.cmdFix = cmdFixEdit_->text().toStdString();
+    config_->chat.cmdSwitchScene = cmdSwitchSceneCombo_->currentData().toString().toStdString();
+    config_->chat.cmdStart = cmdStartEdit_->text().toStdString();
+    config_->chat.cmdStop = cmdStopEdit_->text().toStdString();
+
     // Save message templates
     config_->messages.switchedToLive = msgSwitchedLiveEdit_->text().toStdString();
     config_->messages.switchedToLow = msgSwitchedLowEdit_->text().toStdString();
@@ -991,38 +1086,40 @@ void SettingsDialog::onRemoveServer()
     }
 }
 
-void SettingsDialog::onTestConnection()
+void SettingsDialog::onApply()
 {
-    int row = serverTable_->currentRow();
-    if (row < 0) {
-        QMessageBox::warning(this, "Test Connection", "Please select a server to test.");
-        return;
+    saveSettings();
+
+    if (switcher_) {
+        switcher_->reloadServers();
+
+        Switcher *sw = switcher_;
+        bool chatEnabled = config_->chat.enabled;
+        std::thread([sw, chatEnabled]() {
+            if (chatEnabled)
+                sw->connectChat();
+            else
+                sw->disconnectChat();
+        }).detach();
     }
 
-    QTableWidgetItem *urlItem = serverTable_->item(row, 3);
-    if (!urlItem) return;
-
-    QString url = urlItem->text();
-    QMessageBox::information(this, "Test Connection", 
-        QString("Testing connection to:\n%1\n\n(Full test available after saving)").arg(url));
+    updateStreamingFieldStates();
 }
 
 void SettingsDialog::onSave()
 {
-    saveSettings();
-    
-    if (switcher_) {
-        switcher_->reloadServers();
-        
-        // Handle chat connection based on settings
-        if (config_->chat.enabled) {
-            switcher_->connectChat();
-        } else {
-            switcher_->disconnectChat();
-        }
-    }
-
+    onApply();
     accept();
+}
+
+void SettingsDialog::updateStreamingFieldStates()
+{
+    bool streaming = switcher_ && switcher_->isCurrentlyStreaming();
+
+    chatPlatformCombo_->setEnabled(!streaming);
+    chatChannelEdit_->setEnabled(!streaming);
+    chatBotUsernameEdit_->setEnabled(!streaming);
+    chatOauthEdit_->setEnabled(!streaming);
 }
 
 void SettingsDialog::refreshStatus()
@@ -1047,6 +1144,8 @@ void SettingsDialog::refreshStatus()
         bitrateLabel_->setStyleSheet("color: #f38ba8; font-weight: bold; font-size: 13px;");
         bitrateLabel_->setText("Bitrate: Offline");
     }
+
+    updateStreamingFieldStates();
 }
 
 } // namespace BitrateSwitch

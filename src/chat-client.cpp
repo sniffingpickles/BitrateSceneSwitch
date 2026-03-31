@@ -222,6 +222,7 @@ ChatCommand ChatClient::parseCommand(const std::string& message, std::string& ar
     if (checkCmd(config_.cmdLive, ChatCommand::Live)) return ChatCommand::Live;
     if (checkCmd(config_.cmdLow, ChatCommand::Low)) return ChatCommand::Low;
     if (checkCmd(config_.cmdBrb, ChatCommand::Brb)) return ChatCommand::Brb;
+    if (checkCmd(config_.cmdPrivacy, ChatCommand::Privacy)) return ChatCommand::Privacy;
     if (checkCmd(config_.cmdRefresh, ChatCommand::Refresh)) return ChatCommand::Refresh;
     if (checkCmd(config_.cmdStatus, ChatCommand::Status)) return ChatCommand::Status;
     if (checkCmd(config_.cmdTrigger, ChatCommand::Trigger)) return ChatCommand::Trigger;

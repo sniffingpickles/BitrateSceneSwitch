@@ -28,7 +28,7 @@ private slots:
     void onAddServer();
     void onRemoveServer();
     void onSave();
-    void onTestConnection();
+    void onApply();
     void refreshStatus();
 
 private:
@@ -40,9 +40,11 @@ private:
     void setupAdvancedTab(QWidget *tab);
     void setupChatTab(QWidget *tab);
     void setupMessagesTab(QWidget *tab);
+    void setupCommandsTab(QWidget *tab);
     void loadSettings();
     void saveSettings();
     void populateSceneComboBox(QComboBox *combo, bool allowEmpty = false);
+    void updateStreamingFieldStates();
     static QWidget *wrapInScrollArea(QWidget *content, QWidget *parent);
 
     Config *config_;
@@ -85,7 +87,6 @@ private:
     QTableWidget *serverTable_;
     QPushButton *addServerBtn_;
     QPushButton *removeServerBtn_;
-    QPushButton *testBtn_;
 
     // Status
     QLabel *statusLabel_;
@@ -115,6 +116,19 @@ private:
     QLineEdit *msgStreamStartedEdit_;
     QLineEdit *msgStreamStoppedEdit_;
     QLineEdit *msgSceneSwitchedEdit_;
+
+    // Default command overrides
+    QLineEdit *cmdLiveEdit_;
+    QLineEdit *cmdLowEdit_;
+    QLineEdit *cmdBrbEdit_;
+    QLineEdit *cmdPrivacyEdit_;
+    QLineEdit *cmdRefreshEdit_;
+    QLineEdit *cmdStatusEdit_;
+    QLineEdit *cmdTriggerEdit_;
+    QLineEdit *cmdFixEdit_;
+    QComboBox *cmdSwitchSceneCombo_;
+    QLineEdit *cmdStartEdit_;
+    QLineEdit *cmdStopEdit_;
 
     // Custom commands table
     QTableWidget *customCmdTable_;

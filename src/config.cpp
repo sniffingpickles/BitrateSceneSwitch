@@ -163,10 +163,14 @@ obs_data_t *Config::save()
     obs_data_set_string(data, "chat_cmd_live", chat.cmdLive.c_str());
     obs_data_set_string(data, "chat_cmd_low", chat.cmdLow.c_str());
     obs_data_set_string(data, "chat_cmd_brb", chat.cmdBrb.c_str());
+    obs_data_set_string(data, "chat_cmd_privacy", chat.cmdPrivacy.c_str());
     obs_data_set_string(data, "chat_cmd_refresh", chat.cmdRefresh.c_str());
     obs_data_set_string(data, "chat_cmd_status", chat.cmdStatus.c_str());
     obs_data_set_string(data, "chat_cmd_trigger", chat.cmdTrigger.c_str());
     obs_data_set_string(data, "chat_cmd_fix", chat.cmdFix.c_str());
+    obs_data_set_string(data, "chat_cmd_switch_scene", chat.cmdSwitchScene.c_str());
+    obs_data_set_string(data, "chat_cmd_start", chat.cmdStart.c_str());
+    obs_data_set_string(data, "chat_cmd_stop", chat.cmdStop.c_str());
 
     // Message templates
     obs_data_set_string(data, "msg_switched_live", messages.switchedToLive.c_str());
@@ -310,20 +314,21 @@ void Config::load(obs_data_t *data)
     }
     
     // Chat commands
-    const char *cmdLive = obs_data_get_string(data, "chat_cmd_live");
-    const char *cmdLow = obs_data_get_string(data, "chat_cmd_low");
-    const char *cmdBrb = obs_data_get_string(data, "chat_cmd_brb");
-    const char *cmdRefresh = obs_data_get_string(data, "chat_cmd_refresh");
-    const char *cmdStatus = obs_data_get_string(data, "chat_cmd_status");
-    const char *cmdTrigger = obs_data_get_string(data, "chat_cmd_trigger");
-    const char *cmdFix = obs_data_get_string(data, "chat_cmd_fix");
-    if (cmdLive && *cmdLive) chat.cmdLive = cmdLive;
-    if (cmdLow && *cmdLow) chat.cmdLow = cmdLow;
-    if (cmdBrb && *cmdBrb) chat.cmdBrb = cmdBrb;
-    if (cmdRefresh && *cmdRefresh) chat.cmdRefresh = cmdRefresh;
-    if (cmdStatus && *cmdStatus) chat.cmdStatus = cmdStatus;
-    if (cmdTrigger && *cmdTrigger) chat.cmdTrigger = cmdTrigger;
-    if (cmdFix && *cmdFix) chat.cmdFix = cmdFix;
+    auto loadCmd = [&](const char *key, std::string &dest) {
+        const char *val = obs_data_get_string(data, key);
+        if (val && *val) dest = val;
+    };
+    loadCmd("chat_cmd_live", chat.cmdLive);
+    loadCmd("chat_cmd_low", chat.cmdLow);
+    loadCmd("chat_cmd_brb", chat.cmdBrb);
+    loadCmd("chat_cmd_privacy", chat.cmdPrivacy);
+    loadCmd("chat_cmd_refresh", chat.cmdRefresh);
+    loadCmd("chat_cmd_status", chat.cmdStatus);
+    loadCmd("chat_cmd_trigger", chat.cmdTrigger);
+    loadCmd("chat_cmd_fix", chat.cmdFix);
+    loadCmd("chat_cmd_switch_scene", chat.cmdSwitchScene);
+    loadCmd("chat_cmd_start", chat.cmdStart);
+    loadCmd("chat_cmd_stop", chat.cmdStop);
 
     // Message templates (only override if saved value is non-empty)
     auto loadMsg = [&](const char *key, std::string &dest) {
