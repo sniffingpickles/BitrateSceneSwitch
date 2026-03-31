@@ -1116,6 +1116,7 @@ void SettingsDialog::updateStreamingFieldStates()
 {
     bool streaming = switcher_ && switcher_->isCurrentlyStreaming();
 
+    chatEnabledCheckbox_->setEnabled(!streaming);
     chatPlatformCombo_->setEnabled(!streaming);
     chatChannelEdit_->setEnabled(!streaming);
     chatBotUsernameEdit_->setEnabled(!streaming);

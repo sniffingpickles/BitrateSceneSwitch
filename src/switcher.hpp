@@ -80,6 +80,7 @@ private:
 
     Config *config_;
     std::unique_ptr<ChatClient> chatClient_;
+    std::mutex chatMutex_;
     std::vector<std::unique_ptr<StreamServer>> servers_;
     
     std::thread switcherThread_;

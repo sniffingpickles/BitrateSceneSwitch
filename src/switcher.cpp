@@ -585,9 +585,14 @@ void Switcher::connectChat()
     if (!config_->chat.enabled)
         return;
 
+    std::lock_guard<std::mutex> lock(chatMutex_);
+
     /* Tear down any existing connection first so we pick up
        new credentials / channel without leaking the old socket. */
-    disconnectChat();
+    if (chatClient_) {
+        chatClient_->disconnect();
+        chatClient_.reset();
+    }
 
     chatClient_ = std::make_unique<ChatClient>();
     chatClient_->setCommandCallback([this](const ChatMessage &msg) {
@@ -602,6 +607,7 @@ void Switcher::connectChat()
 
 void Switcher::disconnectChat()
 {
+    std::lock_guard<std::mutex> lock(chatMutex_);
     if (chatClient_) {
         chatClient_->disconnect();
         chatClient_.reset();
@@ -620,6 +626,7 @@ void Switcher::handleChatCommand(const ChatMessage& msg)
          msg.username.c_str(), msg.message.c_str());
 
     auto reply = [this](const std::string &text) {
+        std::lock_guard<std::mutex> lock(chatMutex_);
         if (chatClient_ && chatClient_->isConnected())
             chatClient_->sendMessage(text);
     };
@@ -706,9 +713,9 @@ void Switcher::handleChatCommand(const ChatMessage& msg)
 
 void Switcher::announceSceneChange(SwitchType type)
 {
-    if (!config_->chat.announceSceneChanges || !chatClient_ || !chatClient_->isConnected())
+    if (!config_->chat.announceSceneChanges)
         return;
-    
+
     std::string tmpl;
     switch (type) {
     case SwitchType::Normal:
@@ -723,8 +730,10 @@ void Switcher::announceSceneChange(SwitchType type)
     default:
         return;
     }
-    
-    chatClient_->sendMessage(formatTemplate(tmpl));
+
+    std::lock_guard<std::mutex> lock(chatMutex_);
+    if (chatClient_ && chatClient_->isConnected())
+        chatClient_->sendMessage(formatTemplate(tmpl));
 }
 
 std::string Switcher::formatTemplate(const std::string &tmpl, const std::string &sceneOverride)
@@ -769,6 +778,7 @@ void Switcher::handleCustomCommands(const ChatMessage& msg)
         
         // Match exact command or command with trailing space (for args)
         if (msgLower == triggerLower || msgLower.rfind(triggerLower + " ", 0) == 0) {
+            std::lock_guard<std::mutex> lock(chatMutex_);
             if (chatClient_ && chatClient_->isConnected()) {
                 chatClient_->sendMessage(formatTemplate(cmd.response));
             }
