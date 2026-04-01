@@ -128,7 +128,7 @@ struct ChatConfig {
     std::string cmdStatus = "!status";
     std::string cmdTrigger = "!trigger";
     std::string cmdFix = "!fix";
-    std::string cmdSwitchScene = "!ss";
+    std::string cmdSwitchScene = "!s";
     std::string cmdStart = "!start";
     std::string cmdStop = "!stop";
 };

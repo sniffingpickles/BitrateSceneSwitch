@@ -135,10 +135,16 @@ void Switcher::switcherThread()
         if (!config_->enabled)
             continue;
 
+        /* Always poll server status so the UI shows live bitrate
+           even when scene switching is paused. */
+        {
+            StreamServer *tmp = nullptr;
+            getOnlineServerStatus(&tmp);
+        }
+
         if (config_->onlyWhenStreaming && !isStreaming_)
             continue;
 
-        // Handle RIST stale frame fix timer (runs regardless of scene switchability)
         handleRistStaleFrameFix();
 
         std::string current = getCurrentScene();

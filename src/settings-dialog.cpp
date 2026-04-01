@@ -431,12 +431,12 @@ void SettingsDialog::setupServersTab(QWidget *tab)
     serverTable_->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Interactive);
     serverTable_->horizontalHeader()->setSectionResizeMode(3, QHeaderView::Stretch);
     serverTable_->horizontalHeader()->setSectionResizeMode(4, QHeaderView::Interactive);
-    serverTable_->horizontalHeader()->setSectionResizeMode(5, QHeaderView::Fixed);
+    serverTable_->horizontalHeader()->setSectionResizeMode(5, QHeaderView::Interactive);
     serverTable_->setColumnWidth(0, 60);
     serverTable_->setColumnWidth(1, 110);
     serverTable_->setColumnWidth(2, 100);
     serverTable_->setColumnWidth(4, 120);
-    serverTable_->setColumnWidth(5, 60);
+    serverTable_->setColumnWidth(5, 80);
     serverTable_->verticalHeader()->setDefaultSectionSize(serverTable_->verticalHeader()->defaultSectionSize() + 15);
     serverTable_->setSelectionBehavior(QAbstractItemView::SelectRows);
     serverTable_->setSelectionMode(QAbstractItemView::SingleSelection);
@@ -577,7 +577,7 @@ void SettingsDialog::setupChatTab(QWidget *tab)
         "  !low   - Switch to Low scene\n"
         "  !brb   - Switch to BRB/Offline scene\n"
         "  !privacy - Switch to Privacy scene\n"
-        "  !ss <name> - Switch to any scene by name (!s also available)\n"
+        "  !s <name> - Switch to any scene by name (!ss also works)\n"
         "  !refresh - Refresh scene (fix issues)\n"
         "  !fix   - Refresh media sources\n"
         "  !status - Show current bitrate/status\n"
@@ -613,16 +613,14 @@ void SettingsDialog::setupCommandsTab(QWidget *tab)
     cmdLowEdit_ = new QLineEdit(content);
     cmdBrbEdit_ = new QLineEdit(content);
     cmdPrivacyEdit_ = new QLineEdit(content);
-    cmdSwitchSceneCombo_ = new QComboBox(content);
-    cmdSwitchSceneCombo_->addItem("!ss", "!ss");
-    cmdSwitchSceneCombo_->addItem("!s", "!s");
-    cmdSwitchSceneCombo_->setToolTip("Switch to any scene by name (e.g. !ss LIVE)");
+    cmdSwitchSceneEdit_ = new QLineEdit(content);
+    cmdSwitchSceneEdit_->setToolTip("Switch to any scene by name. Both !s and !ss always work.");
 
     sceneForm->addRow("Live:", cmdLiveEdit_);
     sceneForm->addRow("Low:", cmdLowEdit_);
     sceneForm->addRow("BRB / Offline:", cmdBrbEdit_);
     sceneForm->addRow("Privacy:", cmdPrivacyEdit_);
-    sceneForm->addRow("Switch Scene:", cmdSwitchSceneCombo_);
+    sceneForm->addRow("Switch Scene:", cmdSwitchSceneEdit_);
     layout->addWidget(sceneGroup);
 
     QGroupBox *actionGroup = new QGroupBox("Action Commands", content);
@@ -902,8 +900,7 @@ void SettingsDialog::loadSettings()
     cmdStatusEdit_->setText(QString::fromStdString(config_->chat.cmdStatus));
     cmdTriggerEdit_->setText(QString::fromStdString(config_->chat.cmdTrigger));
     cmdFixEdit_->setText(QString::fromStdString(config_->chat.cmdFix));
-    int ssIdx = cmdSwitchSceneCombo_->findData(QString::fromStdString(config_->chat.cmdSwitchScene));
-    cmdSwitchSceneCombo_->setCurrentIndex(ssIdx >= 0 ? ssIdx : 0);
+    cmdSwitchSceneEdit_->setText(QString::fromStdString(config_->chat.cmdSwitchScene));
     cmdStartEdit_->setText(QString::fromStdString(config_->chat.cmdStart));
     cmdStopEdit_->setText(QString::fromStdString(config_->chat.cmdStop));
 
@@ -1015,7 +1012,7 @@ void SettingsDialog::saveSettings()
     config_->chat.cmdStatus = cmdStatusEdit_->text().toStdString();
     config_->chat.cmdTrigger = cmdTriggerEdit_->text().toStdString();
     config_->chat.cmdFix = cmdFixEdit_->text().toStdString();
-    config_->chat.cmdSwitchScene = cmdSwitchSceneCombo_->currentData().toString().toStdString();
+    config_->chat.cmdSwitchScene = cmdSwitchSceneEdit_->text().toStdString();
     config_->chat.cmdStart = cmdStartEdit_->text().toStdString();
     config_->chat.cmdStop = cmdStopEdit_->text().toStdString();
 

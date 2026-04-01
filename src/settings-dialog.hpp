@@ -126,7 +126,7 @@ private:
     QLineEdit *cmdStatusEdit_;
     QLineEdit *cmdTriggerEdit_;
     QLineEdit *cmdFixEdit_;
-    QComboBox *cmdSwitchSceneCombo_;
+    QLineEdit *cmdSwitchSceneEdit_;
     QLineEdit *cmdStartEdit_;
     QLineEdit *cmdStopEdit_;
 
