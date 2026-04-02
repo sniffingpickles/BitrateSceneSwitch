@@ -146,11 +146,25 @@ jobs:
             Copy-Item -Recurse "data/*" "release/data/obs-plugins/${{ env.PLUGIN_NAME }}/"
           }
 
-      - name: Upload Artifact
+      - name: Build Installer
+        shell: pwsh
+        run: |
+          # Extract version from CMakeLists.txt
+          $version = (Select-String -Path CMakeLists.txt -Pattern 'project\(.+ VERSION (.+)\)').Matches.Groups[1].Value
+          choco install nsis -y --no-progress
+          & "C:\Program Files (x86)\NSIS\makensis.exe" /DPLUGIN_VERSION=$version installer.nsi
+
+      - name: Upload Artifact (zip)
         uses: actions/upload-artifact@v4
         with:
           name: ${{ env.PLUGIN_NAME }}-windows-x64
           path: release/
+
+      - name: Upload Artifact (installer)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.PLUGIN_NAME }}-windows-x64-setup
+          path: ${{ env.PLUGIN_NAME }}-*-setup.exe
 
   release:
     name: Create Release
@@ -171,10 +185,15 @@ jobs:
           cd artifacts/${{ env.PLUGIN_NAME }}-windows-x64
           zip -r ../../${{ env.PLUGIN_NAME }}-${{ github.ref_name }}-windows-x64.zip .
 
+      - name: Stage Installer
+        run: |
+          cp artifacts/${{ env.PLUGIN_NAME }}-windows-x64-setup/*.exe .
+
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
             ${{ env.PLUGIN_NAME }}-${{ github.ref_name }}-windows-x64.zip
+            ${{ env.PLUGIN_NAME }}-*-setup.exe
           draft: false
           prerelease: false
