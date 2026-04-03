@@ -25,14 +25,12 @@ public:
     void checkForUpdates(UpdateCallback callback);
     void setCurrentVersion(const std::string& version);
     
-    static std::string getCurrentVersion() { return CURRENT_VERSION; }
+    static std::string getCurrentVersion() { return PLUGIN_VERSION; }
     
 private:
     std::string fetchLatestRelease();
     bool parseVersion(const std::string& version, int& major, int& minor, int& patch);
     bool isNewerVersion(const std::string& latest, const std::string& current);
-    
-    static constexpr const char* CURRENT_VERSION = "1.0.5";
     static constexpr const char* GITHUB_API_URL = "https://api.github.com/repos/sniffingpickles/BitrateSceneSwitch/releases/latest";
     
     std::thread checkThread_;

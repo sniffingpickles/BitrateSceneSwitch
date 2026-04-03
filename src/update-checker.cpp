@@ -36,7 +36,7 @@ void UpdateChecker::checkForUpdates(UpdateCallback callback)
     
     checkThread_ = std::thread([this, callback]() {
         UpdateInfo info;
-        info.currentVersion = CURRENT_VERSION;
+        info.currentVersion = PLUGIN_VERSION;
         
         std::string response = fetchLatestRelease();
         
