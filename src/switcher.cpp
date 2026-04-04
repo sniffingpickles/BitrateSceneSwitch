@@ -153,7 +153,7 @@ void Switcher::switcherThread()
                 if (chatReconnectDelay_ == 0)
                     chatReconnectDelay_ = 5;
                 else if (chatReconnectDelay_ < 60)
-                    chatReconnectDelay_ = std::min(chatReconnectDelay_ * 2, 60);
+                    chatReconnectDelay_ = (std::min)(chatReconnectDelay_ * 2, 60);
                 chatNextReconnect_ = now + std::chrono::seconds(chatReconnectDelay_);
             }
         } else if (config_->chat.enabled && chatClient_ && chatClient_->isConnected()) {
