@@ -49,6 +49,8 @@ add_library(${PROJECT_NAME} MODULE
     src/servers/rist.hpp
     src/servers/openirl.cpp
     src/servers/openirl.hpp
+    src/servers/irlhosting.cpp
+    src/servers/irlhosting.hpp
     src/servers/xiu.cpp
     src/servers/xiu.hpp
     src/chat-client.cpp
