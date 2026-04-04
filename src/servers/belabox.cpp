@@ -79,9 +79,14 @@ BitrateInfo BelaboxServer::fetchStats()
     std::string rttStr = extractJsonValue(publisherData, "rtt");
     std::string droppedStr = extractJsonValue(publisherData, "dropped_pkts");
 
-    if (!bitrateStr.empty()) info.bitrateKbps = std::stoll(bitrateStr);
-    if (!rttStr.empty()) info.rttMs = std::stod(rttStr);
-    if (!droppedStr.empty()) info.droppedPackets = std::stoi(droppedStr);
+    // don't let a weird stats response take down the whole plugin
+    try {
+        if (!bitrateStr.empty()) info.bitrateKbps = std::stoll(bitrateStr);
+        if (!rttStr.empty()) info.rttMs = std::stod(rttStr);
+        if (!droppedStr.empty()) info.droppedPackets = std::stoi(droppedStr);
+    } catch (...) {
+        return info;
+    }
 
     info.isOnline = info.bitrateKbps > 0;
     return info;

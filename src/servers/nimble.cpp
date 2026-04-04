@@ -88,37 +88,37 @@ BitrateInfo NimbleServer::fetchStats()
         }
     }
 
-    // Extract RTT from link stats
-    std::string linkStats = extractNestedObject(srtResponse.body.substr(idPos), "link");
-    if (!linkStats.empty()) {
-        std::string rttStr = extractJsonValue(linkStats, "rtt");
-        if (!rttStr.empty()) {
-            info.rttMs = std::stod(rttStr);
+    // wrap the whole number-crunching section so one bad value
+    // doesn't nuke the switcher thread
+    try {
+        std::string linkStats = extractNestedObject(srtResponse.body.substr(idPos), "link");
+        if (!linkStats.empty()) {
+            std::string rttStr = extractJsonValue(linkStats, "rtt");
+            if (!rttStr.empty())
+                info.rttMs = std::stod(rttStr);
         }
-    }
 
-    // Fetch RTMP stats for bitrate
-    std::string rtmpUrl = statsUrl_ + "/manage/rtmp_status";
-    HttpResponse rtmpResponse = httpClient_.get(rtmpUrl);
-    if (rtmpResponse.success) {
-        // Find app and stream
-        size_t appPos = rtmpResponse.body.find("\"app\":\"" + application_ + "\"");
-        if (appPos != std::string::npos) {
-            size_t strmPos = rtmpResponse.body.find("\"strm\":\"" + key_ + "\"", appPos);
-            if (strmPos != std::string::npos) {
-                // Find bandwidth near this stream
-                size_t bwPos = rtmpResponse.body.rfind("\"bandwidth\":", strmPos);
-                if (bwPos != std::string::npos && bwPos > appPos) {
-                    std::string bwStr = extractJsonValue(rtmpResponse.body.substr(bwPos), "bandwidth");
-                    if (!bwStr.empty()) {
-                        // Remove quotes if present
-                        if (bwStr.front() == '"') bwStr = bwStr.substr(1, bwStr.size() - 2);
-                        int64_t bw = std::stoll(bwStr);
-                        info.bitrateKbps = bw / 1024;
+        std::string rtmpUrl = statsUrl_ + "/manage/rtmp_status";
+        HttpResponse rtmpResponse = httpClient_.get(rtmpUrl);
+        if (rtmpResponse.success) {
+            size_t appPos = rtmpResponse.body.find("\"app\":\"" + application_ + "\"");
+            if (appPos != std::string::npos) {
+                size_t strmPos = rtmpResponse.body.find("\"strm\":\"" + key_ + "\"", appPos);
+                if (strmPos != std::string::npos) {
+                    size_t bwPos = rtmpResponse.body.rfind("\"bandwidth\":", strmPos);
+                    if (bwPos != std::string::npos && bwPos > appPos) {
+                        std::string bwStr = extractJsonValue(rtmpResponse.body.substr(bwPos), "bandwidth");
+                        if (!bwStr.empty()) {
+                            if (bwStr.front() == '"') bwStr = bwStr.substr(1, bwStr.size() - 2);
+                            int64_t bw = std::stoll(bwStr);
+                            info.bitrateKbps = bw / 1024;
+                        }
                     }
                 }
             }
         }
+    } catch (...) {
+        return info;
     }
 
     info.isOnline = info.bitrateKbps > 0 || info.rttMs > 0;

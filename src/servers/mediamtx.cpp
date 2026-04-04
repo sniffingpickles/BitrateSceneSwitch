@@ -130,7 +130,7 @@ BitrateInfo MediamtxServer::fetchStats()
     }
 
     if (bytesReceived == prevBytesReceived_ && cacheInitialized_) {
-        // No new data since last poll — return cached bitrate instead of reporting offline
+        // no new data since last poll, return cached bitrate instead of reporting offline
         info.bitrateKbps = cachedBitrateKbps_;
         info.isOnline = info.bitrateKbps > 0;
         return info;

@@ -8,6 +8,7 @@
 #include "servers/nimble.hpp"
 #include "servers/rist.hpp"
 #include "servers/openirl.hpp"
+#include "servers/irlhosting.hpp"
 #include "servers/xiu.hpp"
 #include <obs-module.h>
 
@@ -60,7 +61,7 @@ std::unique_ptr<StreamServer> StreamServer::create(const StreamServerConfig &con
     case ServerType::OpenIRL:
         return std::make_unique<OpenIRLServer>(config);
     case ServerType::IrlHosting:
-        return std::make_unique<SlsServer>(config);
+        return std::make_unique<IrlHostingServer>(config);
     case ServerType::Xiu:
         return std::make_unique<XiuServer>(config);
     default:

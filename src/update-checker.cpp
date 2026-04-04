@@ -14,63 +14,62 @@ static size_t WriteCallback(void* contents, size_t size, size_t nmemb, std::stri
 }
 
 UpdateChecker::UpdateChecker()
+    : alive_(std::make_shared<std::atomic<bool>>(true))
 {
 }
 
 UpdateChecker::~UpdateChecker()
 {
-    if (checkThread_.joinable()) {
-        checkThread_.join();
-    }
+    // tell any in-flight thread we're toast
+    *alive_ = false;
+    if (checkThread_.joinable())
+        checkThread_.detach();
 }
 
 void UpdateChecker::checkForUpdates(UpdateCallback callback)
 {
     if (checking_) return;
-    
+
     checking_ = true;
-    
-    if (checkThread_.joinable()) {
-        checkThread_.join();
-    }
-    
-    checkThread_ = std::thread([this, callback]() {
+
+    if (checkThread_.joinable())
+        checkThread_.detach();
+
+    // grab a copy of the alive flag so the lambda can outlive us safely
+    auto alive = alive_;
+
+    checkThread_ = std::thread([this, callback, alive]() {
         UpdateInfo info;
         info.currentVersion = PLUGIN_VERSION;
-        
+
         std::string response = fetchLatestRelease();
-        
+
         if (!response.empty()) {
-            // Parse JSON response for tag_name
             std::regex tagRegex("\"tag_name\"\\s*:\\s*\"([^\"]+)\"");
             std::regex urlRegex("\"html_url\"\\s*:\\s*\"([^\"]+)\"");
             std::regex bodyRegex("\"body\"\\s*:\\s*\"([^\"]+)\"");
-            
+
             std::smatch match;
             if (std::regex_search(response, match, tagRegex)) {
                 info.latestVersion = match[1].str();
-                // Remove 'v' prefix if present
-                if (!info.latestVersion.empty() && info.latestVersion[0] == 'v') {
+                if (!info.latestVersion.empty() && info.latestVersion[0] == 'v')
                     info.latestVersion = info.latestVersion.substr(1);
-                }
             }
-            
-            if (std::regex_search(response, match, urlRegex)) {
+
+            if (std::regex_search(response, match, urlRegex))
                 info.downloadUrl = match[1].str();
-            }
-            
-            if (std::regex_search(response, match, bodyRegex)) {
+
+            if (std::regex_search(response, match, bodyRegex))
                 info.releaseNotes = match[1].str();
-            }
-            
+
             info.hasUpdate = isNewerVersion(info.latestVersion, info.currentVersion);
         }
-        
+
         checking_ = false;
-        
-        if (callback) {
+
+        // don't fire the callback if the dialog already closed
+        if (callback && *alive)
             callback(info);
-        }
     });
 }
 
@@ -88,7 +87,7 @@ std::string UpdateChecker::fetchLatestRelease()
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response);
     curl_easy_setopt(curl, CURLOPT_USERAGENT, "BitrateSceneSwitch-UpdateChecker");
-    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 10L);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 3L);
     curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
     
     CURLcode res = curl_easy_perform(curl);

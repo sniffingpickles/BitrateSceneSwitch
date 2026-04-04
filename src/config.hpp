@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 #include <optional>
+#include <shared_mutex>
 
 namespace BitrateSwitch {
 
@@ -58,7 +59,7 @@ struct DependsOn {
 };
 
 struct StreamServerConfig {
-    ServerType type = ServerType::Belabox;
+    ServerType type = ServerType::IrlHosting;
     std::string name;
     std::string statsUrl;
     std::string publisher;
@@ -142,6 +143,13 @@ public:
     void load(obs_data_t *data);
     void sortServersByPriority();
 
+    // readers grab shared, writers grab exclusive -- keeps the
+    // switcher thread from seeing half-written strings
+    void lockRead() const  { mutex_.lock_shared(); }
+    void unlockRead() const { mutex_.unlock_shared(); }
+    void lockWrite()       { mutex_.lock(); }
+    void unlockWrite()     { mutex_.unlock(); }
+
     // Core settings
     bool enabled = true;
     bool onlyWhenStreaming = false;
@@ -160,6 +168,7 @@ public:
 
 private:
     void setDefaults();
+    mutable std::shared_mutex mutex_;
 };
 
 // Helper to get server type name

@@ -4,6 +4,7 @@
 
 namespace BitrateSwitch {
 
+// same stats format as SLS, just branded for IRLHosting
 class IrlHostingServer : public StreamServer {
 public:
     explicit IrlHostingServer(const StreamServerConfig &config);
@@ -11,12 +12,10 @@ public:
 
     SwitchType checkSwitch(const Triggers &triggers) override;
     BitrateInfo getBitrate() override;
-    std::string getSourceInfo() override;
 
 private:
     BitrateInfo fetchStats();
-    BitrateInfo parseSrtStats(const std::string &body);
-    BitrateInfo parseRtmpStats(const std::string &body);
+    std::string apiKey_;
 };
 
 } // namespace BitrateSwitch

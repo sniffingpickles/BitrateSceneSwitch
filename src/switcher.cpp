@@ -132,33 +132,77 @@ void Switcher::switcherThread()
         if (!running_)
             break;
 
-        if (!config_->enabled)
-            continue;
-
-        /* Always poll server status so the UI shows live bitrate
-           even when scene switching is paused. */
-        {
-            StreamServer *tmp = nullptr;
-            getOnlineServerStatus(&tmp);
+        // settings dialog asked us to reconnect, do it immediately
+        if (chatReconnectRequested_.exchange(false)) {
+            chatReconnectDelay_ = 0;
+            if (config_->chat.enabled)
+                connectChat();
+            else
+                disconnectChat();
         }
 
-        if (config_->onlyWhenStreaming && !isStreaming_)
+        // if chat dropped on its own, reconnect with backoff so
+        // we don't spam twitch and get ourselves rate-limited
+        if (config_->chat.enabled && chatClient_ && !chatClient_->isConnected()) {
+            auto now = std::chrono::steady_clock::now();
+            if (now >= chatNextReconnect_) {
+                blog(LOG_INFO, "[BitrateSceneSwitch] Chat dropped, retrying in %ds...",
+                     chatReconnectDelay_);
+                connectChat();
+                // ramp up: 5s, 10s, 30s, 60s, then stay at 60
+                if (chatReconnectDelay_ == 0)
+                    chatReconnectDelay_ = 5;
+                else if (chatReconnectDelay_ < 60)
+                    chatReconnectDelay_ = std::min(chatReconnectDelay_ * 2, 60);
+                chatNextReconnect_ = now + std::chrono::seconds(chatReconnectDelay_);
+            }
+        } else if (config_->chat.enabled && chatClient_ && chatClient_->isConnected()) {
+            // connection is healthy, reset backoff
+            chatReconnectDelay_ = 0;
+        }
+
+        // hold the config read lock for the whole tick so nobody
+        // can swap strings out from under us while we're working
+        config_->lockRead();
+
+        if (!config_->enabled) {
+            config_->unlockRead();
             continue;
+        }
+
+        // always poll so the status bar shows live bitrate
+        // even when we're not switching scenes
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            getOnlineServerStatusLocked(nullptr);
+        }
+
+        if (config_->onlyWhenStreaming && !isStreaming_) {
+            config_->unlockRead();
+            continue;
+        }
 
         handleRistStaleFrameFix();
 
         std::string current = getCurrentScene();
-        if (!isSceneSwitchable(current))
+        if (!isSceneSwitchable(current)) {
+            config_->unlockRead();
             continue;
+        }
 
         doSwitchCheck();
+        config_->unlockRead();
     }
 }
 
 void Switcher::doSwitchCheck()
 {
+    // grab the lock for the whole check so reloadServers() can't
+    // yank the rug out from under us mid-iteration
+    std::lock_guard<std::mutex> lock(mutex_);
+
     StreamServer* activeServer = nullptr;
-    SwitchType currentSwitchType = getOnlineServerStatus(&activeServer);
+    SwitchType currentSwitchType = getOnlineServerStatusLocked(&activeServer);
 
     // Handle starting scene auto-switch
     if (wasOnStartingScene_ && config_->options.switchFromStartingToLive) {
@@ -302,9 +346,11 @@ void Switcher::handleOfflineTimeout()
     auto minutes = std::chrono::duration_cast<std::chrono::minutes>(elapsed).count();
     
     if (minutes >= static_cast<long>(config_->options.offlineTimeoutMinutes)) {
-        blog(LOG_INFO, "[BitrateSceneSwitch] Offline timeout reached (%d min), stopping stream", 
+        blog(LOG_INFO, "[BitrateSceneSwitch] Offline timeout reached (%d min), stopping stream",
              config_->options.offlineTimeoutMinutes);
-        obs_frontend_streaming_stop();
+        obs_queue_task(OBS_TASK_UI, [](void*) {
+            obs_frontend_streaming_stop();
+        }, nullptr, false);
     }
 }
 
@@ -320,10 +366,15 @@ void Switcher::handleStartingScene()
 SwitchType Switcher::getOnlineServerStatus(StreamServer** activeServer)
 {
     std::lock_guard<std::mutex> lock(mutex_);
+    return getOnlineServerStatusLocked(activeServer);
+}
 
+// same thing but caller already holds mutex_ -- avoids double-lock
+SwitchType Switcher::getOnlineServerStatusLocked(StreamServer** activeServer)
+{
     for (auto &server : servers_) {
         SwitchType status = server->checkSwitch(config_->triggers);
-        
+
         if (status != SwitchType::Offline) {
             lastBitrateInfo_ = server->getBitrate();
             lastBitrateInfo_.serverName = server->getName();
@@ -459,18 +510,25 @@ void Switcher::refreshScene()
 {
     if (!config_->optionalScenes.refresh.empty()) {
         std::string previousScene = getCurrentScene();
-        
+
         if (previousScene == config_->optionalScenes.refresh) {
             blog(LOG_INFO, "[BitrateSceneSwitch] Refresh: already on refresh scene, skipping");
             return;
         }
-        
+
+        // don't block the caller if a refresh is already running
+        if (refreshing_) {
+            blog(LOG_INFO, "[BitrateSceneSwitch] Refresh: already in progress, skipping");
+            return;
+        }
+
         switchToScene(config_->optionalScenes.refresh);
         blog(LOG_INFO, "[BitrateSceneSwitch] Refresh: switching to refresh scene");
-        
+
         if (refreshThread_.joinable())
             refreshThread_.join();
 
+        refreshing_ = true;
         refreshThread_ = std::thread([this, previousScene]() {
             for (int i = 0; i < 50 && running_; ++i)
                 std::this_thread::sleep_for(std::chrono::milliseconds(100));
@@ -479,6 +537,7 @@ void Switcher::refreshScene()
                 blog(LOG_INFO, "[BitrateSceneSwitch] Refresh: returned to scene: %s",
                      previousScene.c_str());
             }
+            refreshing_ = false;
         });
     } else {
         fixMediaSources();
@@ -487,8 +546,8 @@ void Switcher::refreshScene()
 
 void Switcher::fixMediaSources()
 {
-    // Enumerate all sources globally — not just the current scene — so we
-    // catch RIST/SRT feeds that live on LIVE or LOW while BRB is showing.
+    // hit every source in the project, not just the active scene,
+    // so we catch RIST/SRT feeds on LIVE or LOW while BRB is showing
     obs_enum_sources([](void*, obs_source_t *source) -> bool {
         const char *sourceId = obs_source_get_id(source);
         if (!sourceId) return true;
@@ -623,6 +682,7 @@ void Switcher::disconnectChat()
 
 bool Switcher::isChatConnected() const
 {
+    std::lock_guard<std::mutex> lock(chatMutex_);
     return chatClient_ && chatClient_->isConnected();
 }
 
@@ -694,7 +754,10 @@ void Switcher::handleChatCommand(const ChatMessage& msg)
         if (isStreaming_) {
             reply("Stream is already running");
         } else {
-            obs_frontend_streaming_start();
+            // push to the main thread so OBS doesn't freak out
+            obs_queue_task(OBS_TASK_UI, [](void*) {
+                obs_frontend_streaming_start();
+            }, nullptr, false);
             reply(formatTemplate(config_->messages.streamStarted));
             blog(LOG_INFO, "[BitrateSceneSwitch] Stream started via chat");
         }
@@ -703,7 +766,9 @@ void Switcher::handleChatCommand(const ChatMessage& msg)
         if (!isStreaming_) {
             reply("Stream is not running");
         } else {
-            obs_frontend_streaming_stop();
+            obs_queue_task(OBS_TASK_UI, [](void*) {
+                obs_frontend_streaming_stop();
+            }, nullptr, false);
             reply(formatTemplate(config_->messages.streamStopped));
             blog(LOG_INFO, "[BitrateSceneSwitch] Stream stopped via chat");
         }
@@ -791,6 +856,12 @@ void Switcher::handleCustomCommands(const ChatMessage& msg)
             return;
         }
     }
+}
+
+BitrateInfo Switcher::getLastBitrateInfo() const
+{
+    std::lock_guard<std::mutex> lock(mutex_);
+    return lastBitrateInfo_;
 }
 
 BitrateInfo Switcher::getCurrentBitrate()

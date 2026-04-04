@@ -38,7 +38,7 @@ public:
     void onRecordingStopped();
 
     BitrateInfo getCurrentBitrate();
-    BitrateInfo getLastBitrateInfo() const { return lastBitrateInfo_; }
+    BitrateInfo getLastBitrateInfo() const;  
     std::string getStatusString();
     std::string getCurrentScene();
     bool isCurrentlyStreaming() const { return isStreaming_; }
@@ -60,12 +60,14 @@ public:
     void connectChat();
     void disconnectChat();
     bool isChatConnected() const;
+    void requestChatReconnect() { chatReconnectRequested_ = true; }
 
 private:
     void switcherThread();
     void doSwitchCheck();
     
     SwitchType getOnlineServerStatus(StreamServer** activeServer);
+    SwitchType getOnlineServerStatusLocked(StreamServer** activeServer);
     void switchToScene(const std::string &sceneName);
     std::string getSceneForType(SwitchType type, StreamServer* server = nullptr);
     
@@ -80,15 +82,19 @@ private:
 
     Config *config_;
     std::unique_ptr<ChatClient> chatClient_;
-    std::mutex chatMutex_;
+    mutable std::mutex chatMutex_;
     std::vector<std::unique_ptr<StreamServer>> servers_;
     
     std::thread switcherThread_;
     std::thread refreshThread_;
+    std::atomic<bool> refreshing_{false};
     std::atomic<bool> running_{false};
     std::atomic<bool> isStreaming_{false};
     std::atomic<bool> isRecording_{false};
-    std::mutex mutex_;
+    std::atomic<bool> chatReconnectRequested_{false};
+    std::chrono::steady_clock::time_point chatNextReconnect_;
+    int chatReconnectDelay_ = 0;
+    mutable std::mutex mutex_;
 
     SwitchType prevSwitchType_ = SwitchType::Offline;
     uint8_t sameTypeCount_ = 0;

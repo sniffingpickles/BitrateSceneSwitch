@@ -4,6 +4,7 @@
 #include <functional>
 #include <thread>
 #include <atomic>
+#include <memory>
 
 namespace BitrateSwitch {
 
@@ -35,6 +36,8 @@ private:
     
     std::thread checkThread_;
     std::atomic<bool> checking_{false};
+    // prevent the callback from using us after we're gone
+    std::shared_ptr<std::atomic<bool>> alive_;
 };
 
 } // namespace BitrateSwitch

@@ -5,20 +5,14 @@
 
 namespace BitrateSwitch {
 
-ChatClient::ChatClient()
-{
-#ifdef _WIN32
-    WSADATA wsaData;
-    WSAStartup(MAKEWORD(2, 2), &wsaData);
-#endif
-}
+// winsock init is handled by curl_global_init in plugin-main,
+// no need to mess with WSAStartup/WSACleanup here
+
+ChatClient::ChatClient() = default;
 
 ChatClient::~ChatClient()
 {
     disconnect();
-#ifdef _WIN32
-    WSACleanup();
-#endif
 }
 
 void ChatClient::setConfig(const ChatConfig& config)

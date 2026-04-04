@@ -107,8 +107,7 @@ void WebSocketVendor::onSetSettings(obs_data_t *requestData, obs_data_t *respons
     if (!self->config_) return;
 
     Config *cfg = self->config_;
-
-    // Only update fields that are present in the request
+    cfg->lockWrite();
     if (obs_data_has_user_value(requestData, "enabled"))
         cfg->enabled = obs_data_get_bool(requestData, "enabled");
     if (obs_data_has_user_value(requestData, "onlyWhenStreaming"))
@@ -146,7 +145,8 @@ void WebSocketVendor::onSetSettings(obs_data_t *requestData, obs_data_t *respons
     if (obs_data_has_user_value(requestData, "sceneRefresh"))
         cfg->optionalScenes.refresh = obs_data_get_string(requestData, "sceneRefresh");
 
-    // Save and reload
+    cfg->unlockWrite();
+
     if (self->switcher_)
         self->switcher_->reloadServers();
 

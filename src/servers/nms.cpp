@@ -70,8 +70,11 @@ BitrateInfo NmsServer::fetchStats()
 
     if (isLiveStr != "true") return info;
 
-    if (!bitrateStr.empty()) {
-        info.bitrateKbps = std::stoll(bitrateStr);
+    try {
+        if (!bitrateStr.empty())
+            info.bitrateKbps = std::stoll(bitrateStr);
+    } catch (...) {
+        return info;
     }
 
     info.isOnline = info.bitrateKbps > 0;

@@ -1,7 +1,6 @@
 #include "settings-dialog.hpp"
 #include "switcher.hpp"
 
-#include <thread>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QGroupBox>
@@ -847,6 +846,7 @@ void SettingsDialog::loadSettings()
         serverTable_->setCellWidget(row, 0, enabledCheck);
 
         QComboBox *typeCombo = new QComboBox();
+        typeCombo->addItem("IRLHosting", static_cast<int>(ServerType::IrlHosting));
         typeCombo->addItem("BELABOX", static_cast<int>(ServerType::Belabox));
         typeCombo->addItem("NGINX", static_cast<int>(ServerType::Nginx));
         typeCombo->addItem("SRT Live Server", static_cast<int>(ServerType::SrtLiveServer));
@@ -931,6 +931,10 @@ void SettingsDialog::loadSettings()
 
 void SettingsDialog::saveSettings()
 {
+    // hold the write lock so the switcher thread doesn't read
+    // a half-written scene name and go somewhere weird
+    config_->lockWrite();
+
     config_->enabled = enabledCheckbox_->isChecked();
     config_->onlyWhenStreaming = onlyWhenStreamingCheckbox_->isChecked();
     config_->instantRecover = instantRecoverCheckbox_->isChecked();
@@ -1042,6 +1046,8 @@ void SettingsDialog::saveSettings()
             config_->customCommands.push_back(cmd);
         }
     }
+
+    config_->unlockWrite();
 }
 
 void SettingsDialog::onAddServer()
@@ -1054,6 +1060,7 @@ void SettingsDialog::onAddServer()
     serverTable_->setCellWidget(row, 0, enabledCheck);
 
     QComboBox *typeCombo = new QComboBox();
+    typeCombo->addItem("IRLHosting", static_cast<int>(ServerType::IrlHosting));
     typeCombo->addItem("BELABOX", static_cast<int>(ServerType::Belabox));
     typeCombo->addItem("NGINX", static_cast<int>(ServerType::Nginx));
     typeCombo->addItem("SRT Live Server", static_cast<int>(ServerType::SrtLiveServer));
@@ -1090,14 +1097,9 @@ void SettingsDialog::onApply()
     if (switcher_) {
         switcher_->reloadServers();
 
-        Switcher *sw = switcher_;
-        bool chatEnabled = config_->chat.enabled;
-        std::thread([sw, chatEnabled]() {
-            if (chatEnabled)
-                sw->connectChat();
-            else
-                sw->disconnectChat();
-        }).detach();
+        // tell the switcher loop to handle the reconnect on its
+        // own thread instead of doing socket stuff from the UI
+        switcher_->requestChatReconnect();
     }
 
     updateStreamingFieldStates();
