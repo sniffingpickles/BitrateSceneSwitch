@@ -79,11 +79,12 @@ jobs:
           git clone --depth 1 --branch ${{ matrix.obs_version }} https://github.com/obsproject/obs-studio.git obs-studio
           cd obs-studio
           git submodule update --init --recursive --depth 1
-          # OBS 31.0 rejects ARM64 in its cmake, but the headers and
-          # ABI are fine for cross-compile so just remove the check
-          $archFile = "cmake/windows/architecture.cmake"
-          if (Test-Path $archFile) {
-            (Get-Content $archFile) -replace 'message\(FATAL_ERROR.*Unsupported generator platform.*\)', '# arm64 check removed for cross-compile' | Set-Content $archFile
+          # OBS 31.0 rejects ARM64 and tries to download deps that
+          # dont exist. replace the whole arch gate with a pass-through
+          # so cmake just uses our deps from CMAKE_PREFIX_PATH
+          if ("${{ matrix.arch }}" -eq "arm64") {
+            $archFile = "cmake/windows/architecture.cmake"
+            Set-Content $archFile "include_guard(GLOBAL)`ninclude(compilerconfig)"
           }
           cd ..
 
