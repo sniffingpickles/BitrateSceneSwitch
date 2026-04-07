@@ -204,7 +204,9 @@ jobs:
           $obsBuildDir = "$obsDir/build-${{ matrix.arch }}"
           if ("${{ matrix.arch }}" -eq "arm64") {
             function Resolve-Qt6Prefix([string]$root) {
-              $hit = Get-ChildItem "$root\*\*\lib\cmake\Qt6\Qt6Config.cmake" -ErrorAction SilentlyContinue |
+              # install-qt-action passes outputdir as <dir>/Qt, so layout is
+              # <root>/Qt/<ver>/<kit>/lib/cmake/Qt6/Qt6Config.cmake
+              $hit = Get-ChildItem "$root\Qt\*\*\lib\cmake\Qt6\Qt6Config.cmake" -ErrorAction SilentlyContinue |
                 Select-Object -First 1
               if (-not $hit) { return $null }
               return $hit.Directory.Parent.Parent.Parent.FullName
