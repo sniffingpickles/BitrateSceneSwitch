@@ -85,7 +85,8 @@ jobs:
           if ("${{ matrix.arch }}" -eq "arm64") {
             $lines = @(
               "include_guard(GLOBAL)",
-              "include(compilerconfig)",
+              "# tell OBS main CMakeLists this is the parent arch",
+              "set(OBS_PARENT_ARCHITECTURE `${CMAKE_VS_PLATFORM_NAME})",
               "macro(target_disable_feature)",
               "endmacro()",
               "macro(target_disable)",
@@ -96,10 +97,7 @@ jobs:
               "endmacro()",
               "macro(set_target_properties_obs)",
               "  set_target_properties(`${ARGV})",
-              "endmacro()",
-              "add_subdirectory(libobs)",
-              "add_subdirectory(UI/obs-frontend-api)",
-              "return()"
+              "endmacro()"
             )
             $lines -join "`n" | Set-Content "cmake/windows/architecture.cmake"
           }
