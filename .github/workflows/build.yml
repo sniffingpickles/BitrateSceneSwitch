@@ -14,9 +14,27 @@ env:
 
 jobs:
   build-windows:
-    name: Build for Windows x64
+    name: Build for Windows ${{ matrix.arch }}
     runs-on: windows-latest
-    
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            cmake_arch: x64
+            msvc_arch: x64
+            qt_arch: win64_msvc2019_64
+            obs_deps_arch: x64
+            curl_url: "https://curl.se/windows/dl-8.6.0_1/curl-8.6.0_1-win64-mingw.zip"
+            curl_dll: libcurl-x64.dll
+          - arch: arm64
+            cmake_arch: ARM64
+            msvc_arch: amd64_arm64
+            qt_arch: win64_msvc2019_arm64
+            obs_deps_arch: arm64
+            curl_url: "https://curl.se/windows/dl-8.6.0_1/curl-8.6.0_1-win64a-mingw.zip"
+            curl_dll: libcurl-arm64.dll
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -24,7 +42,7 @@ jobs:
       - name: Setup MSVC
         uses: ilammy/msvc-dev-cmd@v1
         with:
-          arch: x64
+          arch: ${{ matrix.msvc_arch }}
 
       - name: Install Qt
         uses: jurplel/install-qt-action@v3
@@ -32,7 +50,7 @@ jobs:
           version: '6.7.2'
           host: 'windows'
           target: 'desktop'
-          arch: 'win64_msvc2019_64'
+          arch: ${{ matrix.qt_arch }}
           cache: true
 
       - name: Cache OBS Studio source
@@ -56,13 +74,13 @@ jobs:
         uses: actions/cache@v4
         with:
           path: obs-deps
-          key: obs-deps-2025-08-23-x64
+          key: obs-deps-2025-08-23-${{ matrix.obs_deps_arch }}
 
       - name: Download OBS deps
         if: steps.cache-deps.outputs.cache-hit != 'true'
         shell: pwsh
         run: |
-          $depsUrl = "https://github.com/obsproject/obs-deps/releases/download/2025-08-23/windows-deps-2025-08-23-x64.zip"
+          $depsUrl = "https://github.com/obsproject/obs-deps/releases/download/2025-08-23/windows-deps-2025-08-23-${{ matrix.obs_deps_arch }}.zip"
           Invoke-WebRequest -Uri $depsUrl -OutFile deps.zip
           Expand-Archive deps.zip -DestinationPath obs-deps
 
@@ -71,14 +89,13 @@ jobs:
         uses: actions/cache@v4
         with:
           path: curl
-          key: curl-8.6.0-win64
+          key: curl-8.6.0-${{ matrix.arch }}
 
       - name: Download pre-built CURL
         if: steps.cache-curl.outputs.cache-hit != 'true'
         shell: pwsh
         run: |
-          $curlUrl = "https://curl.se/windows/dl-8.6.0_1/curl-8.6.0_1-win64-mingw.zip"
-          Invoke-WebRequest -Uri $curlUrl -OutFile curl.zip
+          Invoke-WebRequest -Uri "${{ matrix.curl_url }}" -OutFile curl.zip
           Expand-Archive curl.zip -DestinationPath curl-download
           Move-Item curl-download/curl-* curl
 
@@ -87,14 +104,14 @@ jobs:
         uses: actions/cache@v4
         with:
           path: obs-studio/build
-          key: obs-build-${{ env.OBS_VERSION }}-msvc-release
+          key: obs-build-${{ env.OBS_VERSION }}-msvc-release-${{ matrix.arch }}
 
       - name: Build OBS Libraries
         if: steps.cache-obs-build.outputs.cache-hit != 'true'
         shell: pwsh
         run: |
           cd obs-studio
-          cmake -B build -S . -G "Visual Studio 17 2022" -A x64 `
+          cmake -B build -S . -G "Visual Studio 17 2022" -A ${{ matrix.cmake_arch }} `
             -DCMAKE_BUILD_TYPE=Release `
             -DENABLE_BROWSER=OFF `
             -DENABLE_SCRIPTING=OFF `
@@ -111,7 +128,7 @@ jobs:
           $obsDir = "${{ github.workspace }}/obs-studio"
           $curlDir = "${{ github.workspace }}/curl"
           $obsBuildDir = "$obsDir/build"
-          cmake -B build -S . -G "Visual Studio 17 2022" -A x64 `
+          cmake -B build -S . -G "Visual Studio 17 2022" -A ${{ matrix.cmake_arch }} `
             -DCMAKE_BUILD_TYPE=Release `
             -DCMAKE_PREFIX_PATH="${{ env.Qt6_DIR }};${{ github.workspace }}/obs-deps;$obsBuildDir" `
             -Dlibobs_DIR="$obsBuildDir/libobs" `
@@ -128,8 +145,7 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force -Path "release/obs-plugins/64bit"
           New-Item -ItemType Directory -Force -Path "release/data/obs-plugins/${{ env.PLUGIN_NAME }}"
-          
-          # Copy plugin DLL
+
           $dllPath = "build/Release/${{ env.PLUGIN_NAME }}.dll"
           if (Test-Path $dllPath) {
             Copy-Item $dllPath "release/obs-plugins/64bit/"
@@ -137,19 +153,21 @@ jobs:
             Write-Host "DLL not found at $dllPath, searching..."
             Get-ChildItem -Path build -Recurse -Filter "*.dll" | ForEach-Object { Write-Host $_.FullName }
           }
-          
-          # Copy curl DLL
-          Copy-Item "curl/bin/libcurl-x64.dll" "release/obs-plugins/64bit/"
-          
-          # Copy data files
+
+          # Find and copy the curl DLL (name varies by arch)
+          $curlDll = Get-ChildItem -Path "curl/bin" -Filter "*.dll" | Select-Object -First 1
+          if ($curlDll) {
+            Copy-Item $curlDll.FullName "release/obs-plugins/64bit/"
+          }
+
           if (Test-Path "data") {
             Copy-Item -Recurse "data/*" "release/data/obs-plugins/${{ env.PLUGIN_NAME }}/"
           }
 
       - name: Build Installer
+        if: matrix.arch == 'x64'
         shell: pwsh
         run: |
-          # Extract version from CMakeLists.txt
           $version = (Select-String -Path CMakeLists.txt -Pattern 'project\(.+ VERSION (.+)\)').Matches.Groups[1].Value
           choco install nsis -y --no-progress
           & "C:\Program Files (x86)\NSIS\makensis.exe" /DPLUGIN_VERSION=$version installer.nsi
@@ -157,10 +175,11 @@ jobs:
       - name: Upload Artifact (zip)
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.PLUGIN_NAME }}-windows-x64
+          name: ${{ env.PLUGIN_NAME }}-windows-${{ matrix.arch }}
           path: release/
 
       - name: Upload Artifact (installer)
+        if: matrix.arch == 'x64'
         uses: actions/upload-artifact@v4
         with:
           name: ${{ env.PLUGIN_NAME }}-windows-x64-setup
@@ -173,17 +192,20 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/')
     permissions:
       contents: write
-    
+
     steps:
       - name: Download Artifacts
         uses: actions/download-artifact@v4
         with:
           path: artifacts
 
-      - name: Create Release Archive
+      - name: Create Release Archives
         run: |
           cd artifacts/${{ env.PLUGIN_NAME }}-windows-x64
           zip -r ../../${{ env.PLUGIN_NAME }}-${{ github.ref_name }}-windows-x64.zip .
+          cd ../..
+          cd artifacts/${{ env.PLUGIN_NAME }}-windows-arm64
+          zip -r ../../${{ env.PLUGIN_NAME }}-${{ github.ref_name }}-windows-arm64.zip .
 
       - name: Stage Installer
         run: |
@@ -194,6 +216,7 @@ jobs:
         with:
           files: |
             ${{ env.PLUGIN_NAME }}-${{ github.ref_name }}-windows-x64.zip
+            ${{ env.PLUGIN_NAME }}-${{ github.ref_name }}-windows-arm64.zip
             ${{ env.PLUGIN_NAME }}-*-setup.exe
           draft: false
           prerelease: false
