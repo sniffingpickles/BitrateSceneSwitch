@@ -180,12 +180,20 @@ jobs:
             $cmakeArgs += "-DQT_HOST_PATH=$hostQt"
             # the cmake config files from the x64 build have hardcoded
             # x64 paths. copy them and rewrite to point at our arm64 libs
+            # copy cmake package files next to our arm64 .libs, but only
+            # rewrite paths to Release/*.lib. includes and generated config
+            # stay on build-x64 or they point at dirs we never created.
             foreach ($dir in @("libobs", "UI/obs-frontend-api", "deps/w32-pthreads")) {
               $srcDir = "$obsDir/build-x64/$dir"
-              $dstDir = "$obsDir/build-arm64/$dir"
               Get-ChildItem "$srcDir" -Filter "*.cmake" -Recurse -ErrorAction SilentlyContinue | ForEach-Object {
                 $destPath = $_.FullName -replace "build-x64", "build-arm64"
-                $content = (Get-Content $_.FullName -Raw) -replace "build-x64", "build-arm64"
+                $content = Get-Content $_.FullName -Raw
+                $content = $content -replace "build-x64/libobs/Release", "build-arm64/libobs/Release"
+                $content = $content -replace "build-x64\\libobs\\Release", "build-arm64\\libobs\\Release"
+                $content = $content -replace "build-x64/UI/obs-frontend-api/Release", "build-arm64/UI/obs-frontend-api/Release"
+                $content = $content -replace "build-x64\\UI\\obs-frontend-api\\Release", "build-arm64\\UI\\obs-frontend-api\\Release"
+                $content = $content -replace "build-x64/deps/w32-pthreads/Release", "build-arm64/deps/w32-pthreads/Release"
+                $content = $content -replace "build-x64\\deps\\w32-pthreads\\Release", "build-arm64\\deps\\w32-pthreads\\Release"
                 New-Item -ItemType Directory -Force -Path (Split-Path $destPath) | Out-Null
                 Set-Content $destPath $content
               }
