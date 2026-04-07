@@ -10,7 +10,6 @@ on:
 
 env:
   PLUGIN_NAME: BitrateSceneSwitch
-  OBS_VERSION: "31.0.0"
 
 jobs:
   build-windows:
@@ -24,15 +23,11 @@ jobs:
             cmake_arch: x64
             msvc_arch: x64
             qt_arch: win64_msvc2019_64
-            obs_deps_arch: x64
-            obs_version: "31.0.0"
             curl_url: "https://curl.se/windows/latest.cgi?p=win64-mingw.zip"
           - arch: arm64
             cmake_arch: ARM64
             msvc_arch: amd64_arm64
             qt_arch: win64_msvc2019_arm64
-            obs_deps_arch: arm64
-            obs_version: "31.0.0"
             curl_url: "https://curl.se/windows/latest.cgi?p=win64a-mingw.zip"
 
     steps:
@@ -76,31 +71,9 @@ jobs:
         if: steps.cache-obs.outputs.cache-hit != 'true'
         shell: pwsh
         run: |
-          git clone --depth 1 --branch ${{ matrix.obs_version }} https://github.com/obsproject/obs-studio.git obs-studio
+          git clone --depth 1 --branch 31.0.0 https://github.com/obsproject/obs-studio.git obs-studio
           cd obs-studio
           git submodule update --init --recursive --depth 1
-          # OBS 31.0 rejects ARM64 and tries to download non-existent
-          # deps. we only need libobs and obs-frontend-api, so replace
-          # the arch gate with a minimal stub that adds just those two
-          if ("${{ matrix.arch }}" -eq "arm64") {
-            $lines = @(
-              "include_guard(GLOBAL)",
-              "# tell OBS main CMakeLists this is the parent arch",
-              "set(OBS_PARENT_ARCHITECTURE `${CMAKE_VS_PLATFORM_NAME})",
-              "macro(target_disable_feature)",
-              "endmacro()",
-              "macro(target_disable)",
-              "endmacro()",
-              "macro(target_add_resource)",
-              "endmacro()",
-              "macro(target_export)",
-              "endmacro()",
-              "macro(set_target_properties_obs)",
-              "  set_target_properties(`${ARGV})",
-              "endmacro()"
-            )
-            $lines -join "`n" | Set-Content "cmake/windows/architecture.cmake"
-          }
           cd ..
 
       - name: Cache OBS deps
@@ -108,13 +81,13 @@ jobs:
         uses: actions/cache@v4
         with:
           path: obs-deps
-          key: obs-deps-2025-08-23-${{ matrix.obs_deps_arch }}
+          key: obs-deps-2025-08-23-x64
 
       - name: Download OBS deps
         if: steps.cache-deps.outputs.cache-hit != 'true'
         shell: pwsh
         run: |
-          $depsUrl = "https://github.com/obsproject/obs-deps/releases/download/2025-08-23/windows-deps-2025-08-23-${{ matrix.obs_deps_arch }}.zip"
+          $depsUrl = "https://github.com/obsproject/obs-deps/releases/download/2025-08-23/windows-deps-2025-08-23-x64.zip"
           Invoke-WebRequest -Uri $depsUrl -OutFile deps.zip
           Expand-Archive deps.zip -DestinationPath obs-deps
 
@@ -137,31 +110,55 @@ jobs:
         id: cache-obs-build
         uses: actions/cache@v4
         with:
-          path: obs-studio/build-${{ matrix.arch }}
-          key: obs-build-${{ matrix.obs_version }}-msvc-release-${{ matrix.arch }}
+          path: obs-studio/build-x64
+          key: obs-build-31.0.0-msvc-release-x64
 
-      - name: Build OBS Libraries
+      - name: Build OBS Libraries (x64)
         if: steps.cache-obs-build.outputs.cache-hit != 'true'
         shell: pwsh
         run: |
           cd obs-studio
-          $cmakeArgs = @(
-            "-B", "build-${{ matrix.arch }}", "-S", ".", "-G", "Visual Studio 17 2022", "-A", "${{ matrix.cmake_arch }}",
-            "-DCMAKE_BUILD_TYPE=Release",
-            "-DENABLE_BROWSER=OFF",
-            "-DENABLE_SCRIPTING=OFF",
-            "-DENABLE_UI=ON",
-            "-DENABLE_PLUGINS=OFF",
-            "-DENABLE_VIRTUALCAM=OFF",
-            "-DCMAKE_PREFIX_PATH=${{ github.workspace }}/obs-deps"
-          )
-          if ("${{ matrix.arch }}" -eq "arm64") {
-            $hostQt = "${{ env.Qt6_DIR }}" -replace "msvc2019_arm64", "msvc2019_64"
-            $cmakeArgs += "-DQT_HOST_PATH=$hostQt"
-          }
-          cmake @cmakeArgs
-          cmake --build "build-${{ matrix.arch }}" --config Release --target libobs obs-frontend-api -- /m
+          cmake -B build-x64 -S . -G "Visual Studio 17 2022" -A x64 `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DENABLE_BROWSER=OFF `
+            -DENABLE_SCRIPTING=OFF `
+            -DENABLE_UI=ON `
+            -DENABLE_PLUGINS=OFF `
+            -DENABLE_VIRTUALCAM=OFF `
+            -DCMAKE_PREFIX_PATH="${{ github.workspace }}/obs-deps"
+          cmake --build build-x64 --config Release --target libobs obs-frontend-api -- /m
           cd ..
+
+      - name: Generate ARM64 import libs
+        if: matrix.arch == 'arm64'
+        shell: pwsh
+        run: |
+          # OBS 31.0 cant build for ARM64, but the plugin ABI is
+          # stable. we take the x64-built .lib files, dump their
+          # exports to .def, then regenerate import libs for ARM64
+          New-Item -ItemType Directory -Force -Path obs-studio/build-arm64/libobs/Release
+          New-Item -ItemType Directory -Force -Path obs-studio/build-arm64/UI/obs-frontend-api/Release
+          New-Item -ItemType Directory -Force -Path obs-studio/build-arm64/deps/w32-pthreads/Release
+
+          foreach ($lib in @(
+            @{src="build-x64/libobs/Release/obs.lib"; dst="build-arm64/libobs/Release/obs.lib"; name="obs"},
+            @{src="build-x64/UI/obs-frontend-api/Release/obs-frontend-api.lib"; dst="build-arm64/UI/obs-frontend-api/Release/obs-frontend-api.lib"; name="obs-frontend-api"},
+            @{src="build-x64/deps/w32-pthreads/Release/w32-pthreads.lib"; dst="build-arm64/deps/w32-pthreads/Release/w32-pthreads.lib"; name="w32-pthreads"}
+          )) {
+            $defFile = "$($lib.name).def"
+            # dump exports from x64 lib, create a .def, rebuild as ARM64 import lib
+            & dumpbin /LINKERMEMBER:1 "obs-studio/$($lib.src)" | Select-String "^\s+\S+\s+(\S+)$" | ForEach-Object { $_.Matches.Groups[1].Value } | Sort-Object -Unique | ForEach-Object -Begin { "EXPORTS" } -Process { "  $_" } | Set-Content $defFile
+            & lib /DEF:$defFile /OUT:"obs-studio/$($lib.dst)" /MACHINE:ARM64
+            Remove-Item $defFile
+          }
+
+          # copy cmake config files so find_package works
+          foreach ($dir in @("libobs", "UI/obs-frontend-api", "deps/w32-pthreads")) {
+            $srcCmake = "obs-studio/build-x64/$dir"
+            $dstCmake = "obs-studio/build-arm64/$dir"
+            Get-ChildItem "$srcCmake/*.cmake" -ErrorAction SilentlyContinue | Copy-Item -Destination $dstCmake
+            Get-ChildItem "$srcCmake/Release/*.cmake" -ErrorAction SilentlyContinue | Copy-Item -Destination "$dstCmake/Release"
+          }
 
       - name: Configure Plugin
         shell: pwsh
@@ -179,7 +176,6 @@ jobs:
             "-DCURL_INCLUDE_DIR=$curlDir/include",
             "-DCURL_LIBRARY=$curlDir/lib/libcurl.dll.a"
           )
-          # cross-compile needs the host Qt so moc/uic/rcc can run
           if ("${{ matrix.arch }}" -eq "arm64") {
             $hostQt = "${{ env.Qt6_DIR }}" -replace "msvc2019_arm64", "msvc2019_64"
             $cmakeArgs += "-DQT_HOST_PATH=$hostQt"
