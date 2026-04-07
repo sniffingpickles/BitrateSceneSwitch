@@ -53,13 +53,24 @@ jobs:
           cache-key-prefix: qt-host
 
       - name: Install Qt
+        if: matrix.arch != 'arm64'
         uses: jurplel/install-qt-action@v3
         with:
           version: '6.7.2'
           host: 'windows'
           target: 'desktop'
           arch: ${{ matrix.qt_arch }}
-          dir: ${{ matrix.arch == 'arm64' && format('{0}/Qt-arm64', github.workspace) || format('{0}/Qt', github.workspace) }}
+          cache: true
+
+      - name: Install Qt (ARM64)
+        if: matrix.arch == 'arm64'
+        uses: jurplel/install-qt-action@v3
+        with:
+          version: '6.7.2'
+          host: 'windows'
+          target: 'desktop'
+          arch: ${{ matrix.qt_arch }}
+          dir: ${{ github.workspace }}/Qt-arm64
           cache: true
 
       - name: Cache OBS Studio source
@@ -113,7 +124,7 @@ jobs:
         shell: pwsh
         run: |
           if (-not $env:VCPKG_ROOT) { throw "VCPKG_ROOT not set" }
-          & "$env:VCPKG_ROOT\vcpkg.exe" install curl:arm64-windows --triplet arm64-windows
+          & "$env:VCPKG_ROOT\vcpkg.exe" install curl:arm64-windows --triplet arm64-windows --classic
 
       - name: Cache OBS build
         id: cache-obs-build
@@ -196,10 +207,10 @@ jobs:
             if (-not (Test-Path $qtHost)) { throw "missing Qt host $qtHost" }
             if (-not (Test-Path $curlLib)) { throw "missing $curlLib" }
           } else {
-            $qtTarget = "$ws/Qt/6.7.2/msvc2019_64"
+            $qtTarget = "${{ env.Qt6_DIR }}"
             $curlInc = "$ws/curl/include"
             $curlLib = "$ws/curl/lib/libcurl.dll.a"
-            if (-not (Test-Path $qtTarget)) { throw "missing Qt $qtTarget" }
+            if (-not (Test-Path $qtTarget)) { throw "missing Qt6_DIR $qtTarget" }
           }
           $cmakeArgs = @(
             "-B", "build", "-S", ".", "-G", "Visual Studio 17 2022", "-A", "${{ matrix.cmake_arch }}",
