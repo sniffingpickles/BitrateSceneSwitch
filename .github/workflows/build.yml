@@ -86,6 +86,11 @@ jobs:
             $stub = @"
           include_guard(GLOBAL)
           include(compilerconfig)
+          macro(target_disable_feature) endmacro()
+          macro(target_disable) endmacro()
+          macro(target_add_resource) endmacro()
+          macro(target_export) endmacro()
+          macro(set_target_properties_obs) set_target_properties(`${ARGV}) endmacro()
           add_subdirectory(libobs)
           add_subdirectory(UI/obs-frontend-api)
           return()
