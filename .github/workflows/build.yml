@@ -47,6 +47,7 @@ jobs:
           host: 'windows'
           target: 'desktop'
           arch: 'win64_msvc2019_64'
+          dir: ${{ github.workspace }}/Qt-host
           set-env: false
           cache: true
           cache-key-prefix: qt-host
@@ -58,6 +59,7 @@ jobs:
           host: 'windows'
           target: 'desktop'
           arch: ${{ matrix.qt_arch }}
+          dir: ${{ matrix.arch == 'arm64' && format('{0}/Qt-arm64', github.workspace) || format('{0}/Qt', github.workspace) }}
           cache: true
 
       - name: Cache OBS Studio source
@@ -99,12 +101,19 @@ jobs:
           key: curl-latest-${{ matrix.arch }}
 
       - name: Download pre-built CURL
-        if: steps.cache-curl.outputs.cache-hit != 'true'
+        if: steps.cache-curl.outputs.cache-hit != 'true' && matrix.arch != 'arm64'
         shell: pwsh
         run: |
           Invoke-WebRequest -Uri "${{ matrix.curl_url }}" -OutFile curl.zip
           Expand-Archive curl.zip -DestinationPath curl-download
           Move-Item curl-download/curl-* curl
+
+      - name: Install libcurl (MSVC ARM64)
+        if: matrix.arch == 'arm64'
+        shell: pwsh
+        run: |
+          if (-not $env:VCPKG_ROOT) { throw "VCPKG_ROOT not set" }
+          & "$env:VCPKG_ROOT\vcpkg.exe" install curl:arm64-windows --triplet arm64-windows
 
       - name: Cache OBS build
         id: cache-obs-build
@@ -174,22 +183,36 @@ jobs:
       - name: Configure Plugin
         shell: pwsh
         run: |
-          $obsDir = "${{ github.workspace }}/obs-studio"
-          $curlDir = "${{ github.workspace }}/curl"
+          $ws = "${{ github.workspace }}"
+          $obsDir = "$ws/obs-studio"
           $obsBuildDir = "$obsDir/build-${{ matrix.arch }}"
+          if ("${{ matrix.arch }}" -eq "arm64") {
+            $qtTarget = "$ws/Qt-arm64/6.7.2/msvc2019_arm64"
+            $qtHost = "$ws/Qt-host/6.7.2/msvc2019_64"
+            $vcpkgInstalled = Join-Path $env:VCPKG_ROOT "installed/arm64-windows"
+            $curlInc = "$vcpkgInstalled/include"
+            $curlLib = "$vcpkgInstalled/lib/libcurl.lib"
+            if (-not (Test-Path $qtTarget)) { throw "missing Qt target $qtTarget" }
+            if (-not (Test-Path $qtHost)) { throw "missing Qt host $qtHost" }
+            if (-not (Test-Path $curlLib)) { throw "missing $curlLib" }
+          } else {
+            $qtTarget = "$ws/Qt/6.7.2/msvc2019_64"
+            $curlInc = "$ws/curl/include"
+            $curlLib = "$ws/curl/lib/libcurl.dll.a"
+            if (-not (Test-Path $qtTarget)) { throw "missing Qt $qtTarget" }
+          }
           $cmakeArgs = @(
             "-B", "build", "-S", ".", "-G", "Visual Studio 17 2022", "-A", "${{ matrix.cmake_arch }}",
             "-DCMAKE_BUILD_TYPE=Release",
-            "-DCMAKE_PREFIX_PATH=${{ env.Qt6_DIR }};${{ github.workspace }}/obs-deps;$obsBuildDir",
+            "-DCMAKE_PREFIX_PATH=$qtTarget;$ws/obs-deps;$obsBuildDir",
             "-Dlibobs_DIR=$obsBuildDir/libobs",
             "-Dobs-frontend-api_DIR=$obsBuildDir/UI/obs-frontend-api",
             "-Dw32-pthreads_DIR=$obsBuildDir/deps/w32-pthreads",
-            "-DCURL_INCLUDE_DIR=$curlDir/include",
-            "-DCURL_LIBRARY=$curlDir/lib/libcurl.dll.a"
+            "-DCURL_INCLUDE_DIR=$curlInc",
+            "-DCURL_LIBRARY=$curlLib"
           )
           if ("${{ matrix.arch }}" -eq "arm64") {
-            $hostQt = "${{ env.Qt6_DIR }}" -replace "msvc2019_arm64", "msvc2019_64"
-            $cmakeArgs += "-DQT_HOST_PATH=$hostQt"
+            $cmakeArgs += "-DQT_HOST_PATH=$qtHost"
             # the cmake config files from the x64 build have hardcoded
             # x64 paths. copy them and rewrite to point at our arm64 libs
             # copy cmake package files next to our arm64 .libs, but only
@@ -230,10 +253,18 @@ jobs:
             Get-ChildItem -Path build -Recurse -Filter "*.dll" | ForEach-Object { Write-Host $_.FullName }
           }
 
-          # Find and copy the curl DLL (name varies by arch)
-          $curlDll = Get-ChildItem -Path "curl/bin" -Filter "*.dll" | Select-Object -First 1
-          if ($curlDll) {
-            Copy-Item $curlDll.FullName "release/obs-plugins/64bit/"
+          if ("${{ matrix.arch }}" -eq "arm64") {
+            $vcpkgBin = Join-Path $env:VCPKG_ROOT "installed/arm64-windows/bin"
+            if (Test-Path $vcpkgBin) {
+              Get-ChildItem $vcpkgBin -Filter "*.dll" | ForEach-Object {
+                Copy-Item $_.FullName "release/obs-plugins/64bit/"
+              }
+            }
+          } else {
+            $curlDll = Get-ChildItem -Path "curl/bin" -Filter "*.dll" | Select-Object -First 1
+            if ($curlDll) {
+              Copy-Item $curlDll.FullName "release/obs-plugins/64bit/"
+            }
           }
 
           if (Test-Path "data") {
