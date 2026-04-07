@@ -42,6 +42,18 @@ jobs:
         with:
           arch: ${{ matrix.msvc_arch }}
 
+      - name: Install Qt (host tools for cross-compile)
+        if: matrix.arch == 'arm64'
+        uses: jurplel/install-qt-action@v3
+        with:
+          version: '6.7.2'
+          host: 'windows'
+          target: 'desktop'
+          arch: 'win64_msvc2019_64'
+          set-env: false
+          cache: true
+          cache-key-prefix: qt-host
+
       - name: Install Qt
         uses: jurplel/install-qt-action@v3
         with:
@@ -109,14 +121,21 @@ jobs:
         shell: pwsh
         run: |
           cd obs-studio
-          cmake -B build -S . -G "Visual Studio 17 2022" -A ${{ matrix.cmake_arch }} `
-            -DCMAKE_BUILD_TYPE=Release `
-            -DENABLE_BROWSER=OFF `
-            -DENABLE_SCRIPTING=OFF `
-            -DENABLE_UI=ON `
-            -DENABLE_PLUGINS=OFF `
-            -DENABLE_VIRTUALCAM=OFF `
-            -DCMAKE_PREFIX_PATH="${{ github.workspace }}/obs-deps"
+          $cmakeArgs = @(
+            "-B", "build", "-S", ".", "-G", "Visual Studio 17 2022", "-A", "${{ matrix.cmake_arch }}",
+            "-DCMAKE_BUILD_TYPE=Release",
+            "-DENABLE_BROWSER=OFF",
+            "-DENABLE_SCRIPTING=OFF",
+            "-DENABLE_UI=ON",
+            "-DENABLE_PLUGINS=OFF",
+            "-DENABLE_VIRTUALCAM=OFF",
+            "-DCMAKE_PREFIX_PATH=${{ github.workspace }}/obs-deps"
+          )
+          if ("${{ matrix.arch }}" -eq "arm64") {
+            $hostQt = "${{ env.Qt6_DIR }}" -replace "msvc2019_arm64", "msvc2019_64"
+            $cmakeArgs += "-DQT_HOST_PATH=$hostQt"
+          }
+          cmake @cmakeArgs
           cmake --build build --config Release --target libobs obs-frontend-api -- /m
           cd ..
 
@@ -126,14 +145,22 @@ jobs:
           $obsDir = "${{ github.workspace }}/obs-studio"
           $curlDir = "${{ github.workspace }}/curl"
           $obsBuildDir = "$obsDir/build"
-          cmake -B build -S . -G "Visual Studio 17 2022" -A ${{ matrix.cmake_arch }} `
-            -DCMAKE_BUILD_TYPE=Release `
-            -DCMAKE_PREFIX_PATH="${{ env.Qt6_DIR }};${{ github.workspace }}/obs-deps;$obsBuildDir" `
-            -Dlibobs_DIR="$obsBuildDir/libobs" `
-            -Dobs-frontend-api_DIR="$obsBuildDir/UI/obs-frontend-api" `
-            -Dw32-pthreads_DIR="$obsBuildDir/deps/w32-pthreads" `
-            -DCURL_INCLUDE_DIR="$curlDir/include" `
-            -DCURL_LIBRARY="$curlDir/lib/libcurl.dll.a"
+          $cmakeArgs = @(
+            "-B", "build", "-S", ".", "-G", "Visual Studio 17 2022", "-A", "${{ matrix.cmake_arch }}",
+            "-DCMAKE_BUILD_TYPE=Release",
+            "-DCMAKE_PREFIX_PATH=${{ env.Qt6_DIR }};${{ github.workspace }}/obs-deps;$obsBuildDir",
+            "-Dlibobs_DIR=$obsBuildDir/libobs",
+            "-Dobs-frontend-api_DIR=$obsBuildDir/UI/obs-frontend-api",
+            "-Dw32-pthreads_DIR=$obsBuildDir/deps/w32-pthreads",
+            "-DCURL_INCLUDE_DIR=$curlDir/include",
+            "-DCURL_LIBRARY=$curlDir/lib/libcurl.dll.a"
+          )
+          # cross-compile needs the host Qt so moc/uic/rcc can run
+          if ("${{ matrix.arch }}" -eq "arm64") {
+            $hostQt = "${{ env.Qt6_DIR }}" -replace "msvc2019_arm64", "msvc2019_64"
+            $cmakeArgs += "-DQT_HOST_PATH=$hostQt"
+          }
+          cmake @cmakeArgs
 
       - name: Build Plugin
         run: cmake --build build --config Release
