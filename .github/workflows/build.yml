@@ -146,9 +146,16 @@ jobs:
             @{src="build-x64/deps/w32-pthreads/Release/w32-pthreads.lib"; dst="build-arm64/deps/w32-pthreads/Release/w32-pthreads.lib"; name="w32-pthreads"}
           )) {
             $defFile = "$($lib.name).def"
-            # dump exports from x64 lib, create a .def, rebuild as ARM64 import lib
-            & dumpbin /LINKERMEMBER:1 "obs-studio/$($lib.src)" | Select-String "^\s+\S+\s+(\S+)$" | ForEach-Object { $_.Matches.Groups[1].Value } | Sort-Object -Unique | ForEach-Object -Begin { "EXPORTS" } -Process { "  $_" } | Set-Content $defFile
-            & lib /DEF:$defFile /OUT:"obs-studio/$($lib.dst)" /MACHINE:ARM64
+            # dump public symbols from the x64 lib and filter to
+            # actual function/data exports (skip section names, debug
+            # symbols, and internal linker junk)
+            $symbols = & dumpbin /LINKERMEMBER:1 "obs-studio/$($lib.src)" |
+              Select-String "^\s+[0-9A-F]+\s+(\S+)$" |
+              ForEach-Object { $_.Matches.Groups[1].Value } |
+              Where-Object { $_ -notmatch '^\.' -and $_ -notmatch '^\$' -and $_ -notmatch '__real@' -and $_ -notmatch '__NULL_IMPORT' } |
+              Sort-Object -Unique
+            (@("EXPORTS") + ($symbols | ForEach-Object { "  $_" })) | Set-Content $defFile
+            & lib /DEF:$defFile /OUT:"obs-studio/$($lib.dst)" /MACHINE:ARM64 /NOLOGO
             Remove-Item $defFile
           }
 
