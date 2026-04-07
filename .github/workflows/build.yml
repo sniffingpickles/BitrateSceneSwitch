@@ -159,14 +159,6 @@ jobs:
             Remove-Item $defFile
           }
 
-          # copy cmake config files so find_package works
-          foreach ($dir in @("libobs", "UI/obs-frontend-api", "deps/w32-pthreads")) {
-            $srcCmake = "obs-studio/build-x64/$dir"
-            $dstCmake = "obs-studio/build-arm64/$dir"
-            Get-ChildItem "$srcCmake/*.cmake" -ErrorAction SilentlyContinue | Copy-Item -Destination $dstCmake
-            Get-ChildItem "$srcCmake/Release/*.cmake" -ErrorAction SilentlyContinue | Copy-Item -Destination "$dstCmake/Release"
-          }
-
       - name: Configure Plugin
         shell: pwsh
         run: |
@@ -186,6 +178,18 @@ jobs:
           if ("${{ matrix.arch }}" -eq "arm64") {
             $hostQt = "${{ env.Qt6_DIR }}" -replace "msvc2019_arm64", "msvc2019_64"
             $cmakeArgs += "-DQT_HOST_PATH=$hostQt"
+            # the cmake config files from the x64 build have hardcoded
+            # x64 paths. copy them and rewrite to point at our arm64 libs
+            foreach ($dir in @("libobs", "UI/obs-frontend-api", "deps/w32-pthreads")) {
+              $srcDir = "$obsDir/build-x64/$dir"
+              $dstDir = "$obsDir/build-arm64/$dir"
+              Get-ChildItem "$srcDir" -Filter "*.cmake" -Recurse -ErrorAction SilentlyContinue | ForEach-Object {
+                $destPath = $_.FullName -replace "build-x64", "build-arm64"
+                $content = (Get-Content $_.FullName -Raw) -replace "build-x64", "build-arm64"
+                New-Item -ItemType Directory -Force -Path (Split-Path $destPath) | Out-Null
+                Set-Content $destPath $content
+              }
+            }
           }
           cmake @cmakeArgs
 
