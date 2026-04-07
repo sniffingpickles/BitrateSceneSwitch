@@ -25,12 +25,14 @@ jobs:
             msvc_arch: x64
             qt_arch: win64_msvc2019_64
             obs_deps_arch: x64
+            obs_version: "31.0.0"
             curl_url: "https://curl.se/windows/latest.cgi?p=win64-mingw.zip"
           - arch: arm64
             cmake_arch: ARM64
             msvc_arch: amd64_arm64
             qt_arch: win64_msvc2019_arm64
             obs_deps_arch: arm64
+            obs_version: "31.1.0"
             curl_url: "https://curl.se/windows/latest.cgi?p=win64a-mingw.zip"
 
     steps:
@@ -68,13 +70,13 @@ jobs:
         uses: actions/cache@v4
         with:
           path: obs-studio
-          key: obs-studio-${{ env.OBS_VERSION }}
+          key: obs-studio-${{ matrix.obs_version }}
 
       - name: Clone OBS Studio
         if: steps.cache-obs.outputs.cache-hit != 'true'
         shell: pwsh
         run: |
-          git clone --depth 1 --branch ${{ env.OBS_VERSION }} https://github.com/obsproject/obs-studio.git obs-studio
+          git clone --depth 1 --branch ${{ matrix.obs_version }} https://github.com/obsproject/obs-studio.git obs-studio
           cd obs-studio
           git submodule update --init --recursive --depth 1
           cd ..
@@ -114,7 +116,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: obs-studio/build-${{ matrix.arch }}
-          key: obs-build-${{ env.OBS_VERSION }}-msvc-release-${{ matrix.arch }}
+          key: obs-build-${{ matrix.obs_version }}-msvc-release-${{ matrix.arch }}
 
       - name: Build OBS Libraries
         if: steps.cache-obs-build.outputs.cache-hit != 'true'
