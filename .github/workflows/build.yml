@@ -126,7 +126,14 @@ jobs:
           if (-not $env:VCPKG_ROOT) { throw "VCPKG_ROOT not set" }
           $root = "${{ github.workspace }}/vcpkg-curl-arm64"
           New-Item -ItemType Directory -Force -Path $root | Out-Null
-          Set-Content "$root/vcpkg.json" '{"dependencies":["curl"]}' -Encoding utf8
+          $baseline = (& git -C $env:VCPKG_ROOT rev-parse HEAD).Trim()
+          $manifest = @"
+          {
+            "dependencies": [ "curl" ],
+            "builtin-baseline": "$baseline"
+          }
+          "@
+          $manifest.Trim() | Set-Content "$root/vcpkg.json" -Encoding utf8
           Push-Location $root
           try {
             & "$env:VCPKG_ROOT\vcpkg.exe" install --triplet arm64-windows
