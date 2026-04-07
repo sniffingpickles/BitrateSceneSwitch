@@ -203,14 +203,25 @@ jobs:
           $obsDir = "$ws/obs-studio"
           $obsBuildDir = "$obsDir/build-${{ matrix.arch }}"
           if ("${{ matrix.arch }}" -eq "arm64") {
-            $qtTarget = "$ws/Qt-arm64/6.7.2/msvc2019_arm64"
-            $qtHost = "$ws/Qt-host/6.7.2/msvc2019_64"
+            function Resolve-Qt6Prefix([string]$root) {
+              $hit = Get-ChildItem "$root\*\*\lib\cmake\Qt6\Qt6Config.cmake" -ErrorAction SilentlyContinue |
+                Select-Object -First 1
+              if (-not $hit) { return $null }
+              return $hit.Directory.Parent.Parent.Parent.FullName
+            }
+            $qtTarget = Resolve-Qt6Prefix "$ws/Qt-arm64"
+            $qtHost = Resolve-Qt6Prefix "$ws/Qt-host"
             $vcpkgInstalled = "$ws/vcpkg-standalone/installed/arm64-windows"
             $curlInc = "$vcpkgInstalled/include"
-            $curlLib = "$vcpkgInstalled/lib/libcurl.lib"
-            if (-not (Test-Path $qtTarget)) { throw "missing Qt target $qtTarget" }
-            if (-not (Test-Path $qtHost)) { throw "missing Qt host $qtHost" }
-            if (-not (Test-Path $curlLib)) { throw "missing $curlLib" }
+            $curlLib = Get-ChildItem "$vcpkgInstalled/lib" -Filter "*.lib" -ErrorAction SilentlyContinue |
+              Where-Object { $_.Name -match 'curl' } | Select-Object -First 1
+            if (-not $qtTarget) { throw "could not find Qt6Config.cmake under $ws/Qt-arm64" }
+            if (-not $qtHost) { throw "could not find Qt6Config.cmake under $ws/Qt-host" }
+            if (-not $curlLib) { throw "missing curl import lib under $vcpkgInstalled/lib" }
+            $curlLib = $curlLib.FullName
+            $curlInc = (Get-ChildItem "$vcpkgInstalled/include" -Recurse -Filter "curl.h" -ErrorAction SilentlyContinue |
+              Select-Object -First 1).Directory.FullName
+            if (-not $curlInc) { throw "missing curl headers under $vcpkgInstalled/include" }
           } else {
             $qtTarget = "${{ env.Qt6_DIR }}"
             $curlInc = "$ws/curl/include"
