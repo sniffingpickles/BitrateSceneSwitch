@@ -70,7 +70,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: obs-studio
-          key: obs-studio-${{ matrix.obs_version }}
+          key: obs-studio-${{ matrix.obs_version }}-${{ matrix.arch }}
 
       - name: Clone OBS Studio
         if: steps.cache-obs.outputs.cache-hit != 'true'
