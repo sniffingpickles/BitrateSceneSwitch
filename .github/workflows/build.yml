@@ -113,7 +113,7 @@ jobs:
         id: cache-obs-build
         uses: actions/cache@v4
         with:
-          path: obs-studio/build
+          path: obs-studio/build-${{ matrix.arch }}
           key: obs-build-${{ env.OBS_VERSION }}-msvc-release-${{ matrix.arch }}
 
       - name: Build OBS Libraries
@@ -122,7 +122,7 @@ jobs:
         run: |
           cd obs-studio
           $cmakeArgs = @(
-            "-B", "build", "-S", ".", "-G", "Visual Studio 17 2022", "-A", "${{ matrix.cmake_arch }}",
+            "-B", "build-${{ matrix.arch }}", "-S", ".", "-G", "Visual Studio 17 2022", "-A", "${{ matrix.cmake_arch }}",
             "-DCMAKE_BUILD_TYPE=Release",
             "-DENABLE_BROWSER=OFF",
             "-DENABLE_SCRIPTING=OFF",
@@ -136,7 +136,7 @@ jobs:
             $cmakeArgs += "-DQT_HOST_PATH=$hostQt"
           }
           cmake @cmakeArgs
-          cmake --build build --config Release --target libobs obs-frontend-api -- /m
+          cmake --build "build-${{ matrix.arch }}" --config Release --target libobs obs-frontend-api -- /m
           cd ..
 
       - name: Configure Plugin
@@ -144,7 +144,7 @@ jobs:
         run: |
           $obsDir = "${{ github.workspace }}/obs-studio"
           $curlDir = "${{ github.workspace }}/curl"
-          $obsBuildDir = "$obsDir/build"
+          $obsBuildDir = "$obsDir/build-${{ matrix.arch }}"
           $cmakeArgs = @(
             "-B", "build", "-S", ".", "-G", "Visual Studio 17 2022", "-A", "${{ matrix.cmake_arch }}",
             "-DCMAKE_BUILD_TYPE=Release",
