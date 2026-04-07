@@ -123,23 +123,13 @@ jobs:
         if: matrix.arch == 'arm64'
         shell: pwsh
         run: |
-          if (-not $env:VCPKG_ROOT) { throw "VCPKG_ROOT not set" }
-          $root = "${{ github.workspace }}/vcpkg-curl-arm64"
-          New-Item -ItemType Directory -Force -Path $root | Out-Null
-          $baseline = (& git -C $env:VCPKG_ROOT rev-parse HEAD).Trim()
-          $manifest = @"
-          {
-            "dependencies": [ "curl" ],
-            "builtin-baseline": "$baseline"
+          $vp = "${{ github.workspace }}/vcpkg-standalone"
+          if (-not (Test-Path "$vp/vcpkg.exe")) {
+            git clone --depth 1 https://github.com/microsoft/vcpkg.git $vp
+            Push-Location $vp
+            try { .\bootstrap-vcpkg.bat } finally { Pop-Location }
           }
-          "@
-          $manifest.Trim() | Set-Content "$root/vcpkg.json" -Encoding utf8
-          Push-Location $root
-          try {
-            & "$env:VCPKG_ROOT\vcpkg.exe" install --triplet arm64-windows
-          } finally {
-            Pop-Location
-          }
+          & "$vp\vcpkg.exe" install curl:arm64-windows --triplet arm64-windows
 
       - name: Cache OBS build
         id: cache-obs-build
@@ -215,7 +205,7 @@ jobs:
           if ("${{ matrix.arch }}" -eq "arm64") {
             $qtTarget = "$ws/Qt-arm64/6.7.2/msvc2019_arm64"
             $qtHost = "$ws/Qt-host/6.7.2/msvc2019_64"
-            $vcpkgInstalled = "$ws/vcpkg-curl-arm64/vcpkg_installed/arm64-windows"
+            $vcpkgInstalled = "$ws/vcpkg-standalone/installed/arm64-windows"
             $curlInc = "$vcpkgInstalled/include"
             $curlLib = "$vcpkgInstalled/lib/libcurl.lib"
             if (-not (Test-Path $qtTarget)) { throw "missing Qt target $qtTarget" }
@@ -280,7 +270,7 @@ jobs:
           }
 
           if ("${{ matrix.arch }}" -eq "arm64") {
-            $vcpkgBin = "${{ github.workspace }}/vcpkg-curl-arm64/vcpkg_installed/arm64-windows/bin"
+            $vcpkgBin = "${{ github.workspace }}/vcpkg-standalone/installed/arm64-windows/bin"
             if (Test-Path $vcpkgBin) {
               Get-ChildItem $vcpkgBin -Filter "*.dll" | ForEach-Object {
                 Copy-Item $_.FullName "release/obs-plugins/64bit/"
