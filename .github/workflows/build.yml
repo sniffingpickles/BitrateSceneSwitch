@@ -134,11 +134,9 @@ jobs:
         shell: pwsh
         run: |
           # OBS 31.0 cant build for ARM64, but the plugin ABI matches
-          # x64. shared OBS libs ship as DLL + import .lib; scraping
-          # /LINKERMEMBER off those .libs makes garbage ARM64 .libs
-          # (LNK1127). build import libs from dumpbin /EXPORTS on the
-          # x64 DLLs instead. w32-pthreads stays a real static .lib, so
-          # keep the member-list path there only.
+          # x64. deps are DLL + import .lib; scraping /LINKERMEMBER off
+          # those .libs makes garbage ARM64 .libs (LNK1127). build every
+          # import lib from dumpbin /EXPORTS on the matching x64 DLL.
           New-Item -ItemType Directory -Force -Path obs-studio/build-arm64/libobs/Release
           New-Item -ItemType Directory -Force -Path obs-studio/build-arm64/UI/obs-frontend-api/Release
           New-Item -ItemType Directory -Force -Path obs-studio/build-arm64/deps/w32-pthreads/Release
@@ -162,7 +160,8 @@ jobs:
 
           foreach ($pair in @(
             @{dll="obs-studio/build-x64/libobs/Release/obs.dll"; dst="obs-studio/build-arm64/libobs/Release/obs.lib"; name="obs"},
-            @{dll="obs-studio/build-x64/UI/obs-frontend-api/Release/obs-frontend-api.dll"; dst="obs-studio/build-arm64/UI/obs-frontend-api/Release/obs-frontend-api.lib"; name="obs-frontend-api"}
+            @{dll="obs-studio/build-x64/UI/obs-frontend-api/Release/obs-frontend-api.dll"; dst="obs-studio/build-arm64/UI/obs-frontend-api/Release/obs-frontend-api.lib"; name="obs-frontend-api"},
+            @{dll="obs-studio/build-x64/deps/w32-pthreads/Release/w32-pthreads.dll"; dst="obs-studio/build-arm64/deps/w32-pthreads/Release/w32-pthreads.lib"; name="w32-pthreads"}
           )) {
             if (-not (Test-Path $pair.dll)) { throw "missing $($pair.dll)" }
             $defFile = "$($pair.name).def"
@@ -171,17 +170,6 @@ jobs:
             & lib /DEF:$defFile /OUT:$($pair.dst) /MACHINE:ARM64 /NOLOGO
             Remove-Item $defFile
           }
-
-          $pt = @{src="build-x64/deps/w32-pthreads/Release/w32-pthreads.lib"; dst="build-arm64/deps/w32-pthreads/Release/w32-pthreads.lib"; name="w32-pthreads"}
-          $defFile = "$($pt.name).def"
-          $symbols = & dumpbin /LINKERMEMBER:1 "obs-studio/$($pt.src)" |
-            Select-String "^\s+[0-9A-F]+\s+(\S+)$" |
-            ForEach-Object { $_.Matches.Groups[1].Value } |
-            Where-Object { $_ -notmatch '^\.' -and $_ -notmatch '^\$' -and $_ -notmatch '__real@' -and $_ -notmatch '__NULL_IMPORT' } |
-            Sort-Object -Unique
-          (@("EXPORTS") + ($symbols | ForEach-Object { "  $_" })) | Set-Content -Encoding ascii $defFile
-          & lib /DEF:$defFile /OUT:"obs-studio/$($pt.dst)" /MACHINE:ARM64 /NOLOGO
-          Remove-Item $defFile
 
       - name: Configure Plugin
         shell: pwsh
