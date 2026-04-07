@@ -25,15 +25,13 @@ jobs:
             msvc_arch: x64
             qt_arch: win64_msvc2019_64
             obs_deps_arch: x64
-            curl_url: "https://curl.se/windows/dl-8.6.0_1/curl-8.6.0_1-win64-mingw.zip"
-            curl_dll: libcurl-x64.dll
+            curl_url: "https://curl.se/windows/latest.cgi?p=win64-mingw.zip"
           - arch: arm64
             cmake_arch: ARM64
             msvc_arch: amd64_arm64
             qt_arch: win64_msvc2019_arm64
             obs_deps_arch: arm64
-            curl_url: "https://curl.se/windows/dl-8.6.0_1/curl-8.6.0_1-win64a-mingw.zip"
-            curl_dll: libcurl-arm64.dll
+            curl_url: "https://curl.se/windows/latest.cgi?p=win64a-mingw.zip"
 
     steps:
       - name: Checkout
@@ -89,7 +87,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: curl
-          key: curl-8.6.0-${{ matrix.arch }}
+          key: curl-latest-${{ matrix.arch }}
 
       - name: Download pre-built CURL
         if: steps.cache-curl.outputs.cache-hit != 'true'
