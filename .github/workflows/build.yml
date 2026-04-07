@@ -32,7 +32,7 @@ jobs:
             msvc_arch: amd64_arm64
             qt_arch: win64_msvc2019_arm64
             obs_deps_arch: arm64
-            obs_version: "32.0.0"
+            obs_version: "31.0.0"
             curl_url: "https://curl.se/windows/latest.cgi?p=win64a-mingw.zip"
 
     steps:
@@ -79,6 +79,12 @@ jobs:
           git clone --depth 1 --branch ${{ matrix.obs_version }} https://github.com/obsproject/obs-studio.git obs-studio
           cd obs-studio
           git submodule update --init --recursive --depth 1
+          # OBS 31.0 rejects ARM64 in its cmake, but the headers and
+          # ABI are fine for cross-compile so just remove the check
+          $archFile = "cmake/windows/architecture.cmake"
+          if (Test-Path $archFile) {
+            (Get-Content $archFile) -replace 'message\(FATAL_ERROR.*Unsupported generator platform.*\)', '# arm64 check removed for cross-compile' | Set-Content $archFile
+          }
           cd ..
 
       - name: Cache OBS deps
@@ -136,11 +142,6 @@ jobs:
           if ("${{ matrix.arch }}" -eq "arm64") {
             $hostQt = "${{ env.Qt6_DIR }}" -replace "msvc2019_arm64", "msvc2019_64"
             $cmakeArgs += "-DQT_HOST_PATH=$hostQt"
-            $cmakeArgs += "-DCMAKE_SYSTEM_PROCESSOR=ARM64"
-            # stop OBS from downloading its own Qt (arm64 moc cant
-            # run on the x64 build runner), use ours instead
-            $cmakeArgs += "-DENABLE_DEPS=OFF"
-            $cmakeArgs += "-DQt6_DIR=${{ env.Qt6_DIR }}/lib/cmake/Qt6"
           }
           cmake @cmakeArgs
           cmake --build "build-${{ matrix.arch }}" --config Release --target libobs obs-frontend-api -- /m
