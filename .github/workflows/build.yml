@@ -10,26 +10,13 @@ on:
 
 env:
   PLUGIN_NAME: BitrateSceneSwitch
+  OBS_VERSION: "31.0.0"
 
 jobs:
   build-windows:
-    name: Build for Windows ${{ matrix.arch }}
+    name: Build for Windows x64
     runs-on: windows-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - arch: x64
-            cmake_arch: x64
-            msvc_arch: x64
-            qt_arch: win64_msvc2019_64
-            curl_url: "https://curl.se/windows/latest.cgi?p=win64-mingw.zip"
-          - arch: arm64
-            cmake_arch: ARM64
-            msvc_arch: amd64_arm64
-            qt_arch: win64_msvc2019_arm64
-            curl_url: "https://curl.se/windows/latest.cgi?p=win64a-mingw.zip"
-
+    
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -37,40 +24,15 @@ jobs:
       - name: Setup MSVC
         uses: ilammy/msvc-dev-cmd@v1
         with:
-          arch: ${{ matrix.msvc_arch }}
+          arch: x64
 
-      - name: Install Qt (host tools for cross-compile)
-        if: matrix.arch == 'arm64'
+      - name: Install Qt
         uses: jurplel/install-qt-action@v3
         with:
           version: '6.7.2'
           host: 'windows'
           target: 'desktop'
           arch: 'win64_msvc2019_64'
-          dir: ${{ github.workspace }}/Qt-host
-          set-env: false
-          cache: true
-          cache-key-prefix: qt-host
-
-      - name: Install Qt
-        if: matrix.arch != 'arm64'
-        uses: jurplel/install-qt-action@v3
-        with:
-          version: '6.7.2'
-          host: 'windows'
-          target: 'desktop'
-          arch: ${{ matrix.qt_arch }}
-          cache: true
-
-      - name: Install Qt (ARM64)
-        if: matrix.arch == 'arm64'
-        uses: jurplel/install-qt-action@v3
-        with:
-          version: '6.7.2'
-          host: 'windows'
-          target: 'desktop'
-          arch: ${{ matrix.qt_arch }}
-          dir: ${{ github.workspace }}/Qt-arm64
           cache: true
 
       - name: Cache OBS Studio source
@@ -78,13 +40,13 @@ jobs:
         uses: actions/cache@v4
         with:
           path: obs-studio
-          key: obs-studio-${{ matrix.obs_version }}-${{ matrix.arch }}
+          key: obs-studio-${{ env.OBS_VERSION }}
 
       - name: Clone OBS Studio
         if: steps.cache-obs.outputs.cache-hit != 'true'
         shell: pwsh
         run: |
-          git clone --depth 1 --branch 31.0.0 https://github.com/obsproject/obs-studio.git obs-studio
+          git clone --depth 1 --branch ${{ env.OBS_VERSION }} https://github.com/obsproject/obs-studio.git obs-studio
           cd obs-studio
           git submodule update --init --recursive --depth 1
           cd ..
@@ -109,41 +71,30 @@ jobs:
         uses: actions/cache@v4
         with:
           path: curl
-          key: curl-latest-${{ matrix.arch }}
+          key: curl-8.6.0-win64
 
       - name: Download pre-built CURL
-        if: steps.cache-curl.outputs.cache-hit != 'true' && matrix.arch != 'arm64'
+        if: steps.cache-curl.outputs.cache-hit != 'true'
         shell: pwsh
         run: |
-          Invoke-WebRequest -Uri "${{ matrix.curl_url }}" -OutFile curl.zip
+          $curlUrl = "https://curl.se/windows/dl-8.6.0_1/curl-8.6.0_1-win64-mingw.zip"
+          Invoke-WebRequest -Uri $curlUrl -OutFile curl.zip
           Expand-Archive curl.zip -DestinationPath curl-download
           Move-Item curl-download/curl-* curl
-
-      - name: Install libcurl (MSVC ARM64)
-        if: matrix.arch == 'arm64'
-        shell: pwsh
-        run: |
-          $vp = "${{ github.workspace }}/vcpkg-standalone"
-          if (-not (Test-Path "$vp/vcpkg.exe")) {
-            git clone --depth 1 https://github.com/microsoft/vcpkg.git $vp
-            Push-Location $vp
-            try { .\bootstrap-vcpkg.bat } finally { Pop-Location }
-          }
-          & "$vp\vcpkg.exe" install curl:arm64-windows --triplet arm64-windows
 
       - name: Cache OBS build
         id: cache-obs-build
         uses: actions/cache@v4
         with:
-          path: obs-studio/build-x64
-          key: obs-build-31.0.0-msvc-release-x64
+          path: obs-studio/build
+          key: obs-build-${{ env.OBS_VERSION }}-msvc-release
 
-      - name: Build OBS Libraries (x64)
+      - name: Build OBS Libraries
         if: steps.cache-obs-build.outputs.cache-hit != 'true'
         shell: pwsh
         run: |
           cd obs-studio
-          cmake -B build-x64 -S . -G "Visual Studio 17 2022" -A x64 `
+          cmake -B build -S . -G "Visual Studio 17 2022" -A x64 `
             -DCMAKE_BUILD_TYPE=Release `
             -DENABLE_BROWSER=OFF `
             -DENABLE_SCRIPTING=OFF `
@@ -151,119 +102,23 @@ jobs:
             -DENABLE_PLUGINS=OFF `
             -DENABLE_VIRTUALCAM=OFF `
             -DCMAKE_PREFIX_PATH="${{ github.workspace }}/obs-deps"
-          cmake --build build-x64 --config Release --target libobs obs-frontend-api -- /m
+          cmake --build build --config Release --target libobs obs-frontend-api -- /m
           cd ..
-
-      - name: Generate ARM64 import libs
-        if: matrix.arch == 'arm64'
-        shell: pwsh
-        run: |
-          # OBS 31.0 cant build for ARM64, but the plugin ABI matches
-          # x64. deps are DLL + import .lib; scraping /LINKERMEMBER off
-          # those .libs makes garbage ARM64 .libs (LNK1127). build every
-          # import lib from dumpbin /EXPORTS on the matching x64 DLL.
-          New-Item -ItemType Directory -Force -Path obs-studio/build-arm64/libobs/Release
-          New-Item -ItemType Directory -Force -Path obs-studio/build-arm64/UI/obs-frontend-api/Release
-          New-Item -ItemType Directory -Force -Path obs-studio/build-arm64/deps/w32-pthreads/Release
-
-          function Get-DllExportSymbols([string]$dllPath) {
-            $lines = & dumpbin /EXPORTS $dllPath
-            $inTable = $false
-            $out = New-Object System.Collections.Generic.List[string]
-            foreach ($line in $lines) {
-              if ($line -match 'ordinal\s+hint\s+RVA\s+name') { $inTable = $true; continue }
-              if (-not $inTable) { continue }
-              if ($line -match '^\s*Summary\s*$') { break }
-              if ($line -notmatch '^\s+\d+\s+[0-9A-F]+\s+[0-9A-F]+\s+(.+)$') { continue }
-              $name = $Matches[1].Trim()
-              if ($name -match '^(.+?)\s+=') { $name = $Matches[1].Trim() }
-              if (-not $name -or $name -match '^\[NONAME\]' -or $name -match '^__IMPORT_DESCRIPTOR_') { continue }
-              $out.Add($name)
-            }
-            return $out | Sort-Object -Unique
-          }
-
-          foreach ($pair in @(
-            @{dll="obs-studio/build-x64/libobs/Release/obs.dll"; dst="obs-studio/build-arm64/libobs/Release/obs.lib"; name="obs"},
-            @{dll="obs-studio/build-x64/UI/obs-frontend-api/Release/obs-frontend-api.dll"; dst="obs-studio/build-arm64/UI/obs-frontend-api/Release/obs-frontend-api.lib"; name="obs-frontend-api"},
-            @{dll="obs-studio/build-x64/deps/w32-pthreads/Release/w32-pthreads.dll"; dst="obs-studio/build-arm64/deps/w32-pthreads/Release/w32-pthreads.lib"; name="w32-pthreads"}
-          )) {
-            if (-not (Test-Path $pair.dll)) { throw "missing $($pair.dll)" }
-            $defFile = "$($pair.name).def"
-            $symbols = Get-DllExportSymbols $pair.dll
-            (@("EXPORTS") + ($symbols | ForEach-Object { "  $_" })) | Set-Content -Encoding ascii $defFile
-            & lib /DEF:$defFile /OUT:$($pair.dst) /MACHINE:ARM64 /NOLOGO
-            Remove-Item $defFile
-          }
 
       - name: Configure Plugin
         shell: pwsh
         run: |
-          $ws = "${{ github.workspace }}"
-          $obsDir = "$ws/obs-studio"
-          $obsBuildDir = "$obsDir/build-${{ matrix.arch }}"
-          if ("${{ matrix.arch }}" -eq "arm64") {
-            function Resolve-Qt6Prefix([string]$root) {
-              # install-qt-action passes outputdir as <dir>/Qt, so layout is
-              # <root>/Qt/<ver>/<kit>/lib/cmake/Qt6/Qt6Config.cmake
-              $hit = Get-ChildItem "$root\Qt\*\*\lib\cmake\Qt6\Qt6Config.cmake" -ErrorAction SilentlyContinue |
-                Select-Object -First 1
-              if (-not $hit) { return $null }
-              return $hit.Directory.Parent.Parent.Parent.FullName
-            }
-            $qtTarget = Resolve-Qt6Prefix "$ws/Qt-arm64"
-            $qtHost = Resolve-Qt6Prefix "$ws/Qt-host"
-            $vcpkgInstalled = "$ws/vcpkg-standalone/installed/arm64-windows"
-            $curlInc = "$vcpkgInstalled/include"
-            $curlLib = Get-ChildItem "$vcpkgInstalled/lib" -Filter "*.lib" -ErrorAction SilentlyContinue |
-              Where-Object { $_.Name -match 'curl' } | Select-Object -First 1
-            if (-not $qtTarget) { throw "could not find Qt6Config.cmake under $ws/Qt-arm64" }
-            if (-not $qtHost) { throw "could not find Qt6Config.cmake under $ws/Qt-host" }
-            if (-not $curlLib) { throw "missing curl import lib under $vcpkgInstalled/lib" }
-            $curlLib = $curlLib.FullName
-            $curlInc = (Get-ChildItem "$vcpkgInstalled/include" -Recurse -Filter "curl.h" -ErrorAction SilentlyContinue |
-              Select-Object -First 1).Directory.FullName
-            if (-not $curlInc) { throw "missing curl headers under $vcpkgInstalled/include" }
-          } else {
-            $qtTarget = "${{ env.Qt6_DIR }}"
-            $curlInc = "$ws/curl/include"
-            $curlLib = "$ws/curl/lib/libcurl.dll.a"
-            if (-not (Test-Path $qtTarget)) { throw "missing Qt6_DIR $qtTarget" }
-          }
-          $cmakeArgs = @(
-            "-B", "build", "-S", ".", "-G", "Visual Studio 17 2022", "-A", "${{ matrix.cmake_arch }}",
-            "-DCMAKE_BUILD_TYPE=Release",
-            "-DCMAKE_PREFIX_PATH=$qtTarget;$ws/obs-deps;$obsBuildDir",
-            "-Dlibobs_DIR=$obsBuildDir/libobs",
-            "-Dobs-frontend-api_DIR=$obsBuildDir/UI/obs-frontend-api",
-            "-Dw32-pthreads_DIR=$obsBuildDir/deps/w32-pthreads",
-            "-DCURL_INCLUDE_DIR=$curlInc",
-            "-DCURL_LIBRARY=$curlLib"
-          )
-          if ("${{ matrix.arch }}" -eq "arm64") {
-            $cmakeArgs += "-DQT_HOST_PATH=$qtHost"
-            # the cmake config files from the x64 build have hardcoded
-            # x64 paths. copy them and rewrite to point at our arm64 libs
-            # copy cmake package files next to our arm64 .libs, but only
-            # rewrite paths to Release/*.lib. includes and generated config
-            # stay on build-x64 or they point at dirs we never created.
-            foreach ($dir in @("libobs", "UI/obs-frontend-api", "deps/w32-pthreads")) {
-              $srcDir = "$obsDir/build-x64/$dir"
-              Get-ChildItem "$srcDir" -Filter "*.cmake" -Recurse -ErrorAction SilentlyContinue | ForEach-Object {
-                $destPath = $_.FullName -replace "build-x64", "build-arm64"
-                $content = Get-Content $_.FullName -Raw
-                $content = $content -replace "build-x64/libobs/Release", "build-arm64/libobs/Release"
-                $content = $content -replace "build-x64\\libobs\\Release", "build-arm64\\libobs\\Release"
-                $content = $content -replace "build-x64/UI/obs-frontend-api/Release", "build-arm64/UI/obs-frontend-api/Release"
-                $content = $content -replace "build-x64\\UI\\obs-frontend-api\\Release", "build-arm64\\UI\\obs-frontend-api\\Release"
-                $content = $content -replace "build-x64/deps/w32-pthreads/Release", "build-arm64/deps/w32-pthreads/Release"
-                $content = $content -replace "build-x64\\deps\\w32-pthreads\\Release", "build-arm64\\deps\\w32-pthreads\\Release"
-                New-Item -ItemType Directory -Force -Path (Split-Path $destPath) | Out-Null
-                Set-Content $destPath $content
-              }
-            }
-          }
-          cmake @cmakeArgs
+          $obsDir = "${{ github.workspace }}/obs-studio"
+          $curlDir = "${{ github.workspace }}/curl"
+          $obsBuildDir = "$obsDir/build"
+          cmake -B build -S . -G "Visual Studio 17 2022" -A x64 `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DCMAKE_PREFIX_PATH="${{ env.Qt6_DIR }};${{ github.workspace }}/obs-deps;$obsBuildDir" `
+            -Dlibobs_DIR="$obsBuildDir/libobs" `
+            -Dobs-frontend-api_DIR="$obsBuildDir/UI/obs-frontend-api" `
+            -Dw32-pthreads_DIR="$obsBuildDir/deps/w32-pthreads" `
+            -DCURL_INCLUDE_DIR="$curlDir/include" `
+            -DCURL_LIBRARY="$curlDir/lib/libcurl.dll.a"
 
       - name: Build Plugin
         run: cmake --build build --config Release
@@ -273,7 +128,8 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force -Path "release/obs-plugins/64bit"
           New-Item -ItemType Directory -Force -Path "release/data/obs-plugins/${{ env.PLUGIN_NAME }}"
-
+          
+          # Copy plugin DLL
           $dllPath = "build/Release/${{ env.PLUGIN_NAME }}.dll"
           if (Test-Path $dllPath) {
             Copy-Item $dllPath "release/obs-plugins/64bit/"
@@ -281,29 +137,19 @@ jobs:
             Write-Host "DLL not found at $dllPath, searching..."
             Get-ChildItem -Path build -Recurse -Filter "*.dll" | ForEach-Object { Write-Host $_.FullName }
           }
-
-          if ("${{ matrix.arch }}" -eq "arm64") {
-            $vcpkgBin = "${{ github.workspace }}/vcpkg-standalone/installed/arm64-windows/bin"
-            if (Test-Path $vcpkgBin) {
-              Get-ChildItem $vcpkgBin -Filter "*.dll" | ForEach-Object {
-                Copy-Item $_.FullName "release/obs-plugins/64bit/"
-              }
-            }
-          } else {
-            $curlDll = Get-ChildItem -Path "curl/bin" -Filter "*.dll" | Select-Object -First 1
-            if ($curlDll) {
-              Copy-Item $curlDll.FullName "release/obs-plugins/64bit/"
-            }
-          }
-
+          
+          # Copy curl DLL
+          Copy-Item "curl/bin/libcurl-x64.dll" "release/obs-plugins/64bit/"
+          
+          # Copy data files
           if (Test-Path "data") {
             Copy-Item -Recurse "data/*" "release/data/obs-plugins/${{ env.PLUGIN_NAME }}/"
           }
 
       - name: Build Installer
-        if: matrix.arch == 'x64'
         shell: pwsh
         run: |
+          # Extract version from CMakeLists.txt
           $version = (Select-String -Path CMakeLists.txt -Pattern 'project\(.+ VERSION (.+)\)').Matches.Groups[1].Value
           choco install nsis -y --no-progress
           & "C:\Program Files (x86)\NSIS\makensis.exe" /DPLUGIN_VERSION=$version installer.nsi
@@ -311,11 +157,10 @@ jobs:
       - name: Upload Artifact (zip)
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.PLUGIN_NAME }}-windows-${{ matrix.arch }}
+          name: ${{ env.PLUGIN_NAME }}-windows-x64
           path: release/
 
       - name: Upload Artifact (installer)
-        if: matrix.arch == 'x64'
         uses: actions/upload-artifact@v4
         with:
           name: ${{ env.PLUGIN_NAME }}-windows-x64-setup
@@ -328,20 +173,17 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/')
     permissions:
       contents: write
-
+    
     steps:
       - name: Download Artifacts
         uses: actions/download-artifact@v4
         with:
           path: artifacts
 
-      - name: Create Release Archives
+      - name: Create Release Archive
         run: |
           cd artifacts/${{ env.PLUGIN_NAME }}-windows-x64
           zip -r ../../${{ env.PLUGIN_NAME }}-${{ github.ref_name }}-windows-x64.zip .
-          cd ../..
-          cd artifacts/${{ env.PLUGIN_NAME }}-windows-arm64
-          zip -r ../../${{ env.PLUGIN_NAME }}-${{ github.ref_name }}-windows-arm64.zip .
 
       - name: Stage Installer
         run: |
@@ -352,7 +194,6 @@ jobs:
         with:
           files: |
             ${{ env.PLUGIN_NAME }}-${{ github.ref_name }}-windows-x64.zip
-            ${{ env.PLUGIN_NAME }}-${{ github.ref_name }}-windows-arm64.zip
             ${{ env.PLUGIN_NAME }}-*-setup.exe
           draft: false
           prerelease: false
