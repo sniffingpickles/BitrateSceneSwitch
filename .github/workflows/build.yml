@@ -143,15 +143,15 @@ jobs:
           Copy-Item "curl/bin/libcurl-x64.dll" "release/obs-plugins/64bit/"
 
           # Qt6WebSockets is not shipped with OBS; bundle it alongside the plugin
-          $qtBin = "${{ env.Qt6_DIR }}/../../../bin"
+          $qtBin = "${{ env.Qt6_DIR }}/bin"
           foreach ($dll in @("Qt6WebSockets.dll", "Qt6Network.dll")) {
             $src = Join-Path $qtBin $dll
             if (Test-Path $src) {
               Copy-Item $src "release/obs-plugins/64bit/"
-              Write-Host "Bundled $dll"
+              Write-Host "Bundled $dll from $src"
             } else {
-              Write-Host "WARNING: $dll not found at $src"
-              Get-ChildItem -Path "${{ env.Qt6_DIR }}/../../.." -Recurse -Filter $dll | ForEach-Object { Write-Host $_.FullName }
+              Write-Host "ERROR: $dll not found at $src"
+              exit 1
             }
           }
           
