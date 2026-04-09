@@ -81,7 +81,6 @@ Section "Install"
     SetOutPath "$INSTDIR\obs-plugins\64bit"
     File "release\obs-plugins\64bit\${PLUGIN_NAME}.dll"
     File "release\obs-plugins\64bit\libcurl-x64.dll"
-    File /nonfatal "release\obs-plugins\64bit\Qt6WebSockets.dll"
 
     SetOutPath "$INSTDIR\data\obs-plugins\${PLUGIN_NAME}"
     File /r "release\data\obs-plugins\${PLUGIN_NAME}\*.*"

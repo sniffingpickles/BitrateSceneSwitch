@@ -15,7 +15,7 @@ find_package(libobs REQUIRED)
 find_package(obs-frontend-api REQUIRED)
 
 # Find Qt6
-find_package(Qt6 REQUIRED COMPONENTS Widgets Core Network WebSockets)
+find_package(Qt6 REQUIRED COMPONENTS Widgets Core)
 
 # Find CURL
 find_package(CURL REQUIRED)
@@ -55,6 +55,8 @@ add_library(${PROJECT_NAME} MODULE
     src/servers/xiu.hpp
     src/chat-client.cpp
     src/chat-client.hpp
+    src/ws-client.cpp
+    src/ws-client.hpp
     src/kick-chat.cpp
     src/kick-chat.hpp
     src/twitch-pubsub.cpp
@@ -70,8 +72,6 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     OBS::obs-frontend-api
     Qt6::Widgets
     Qt6::Core
-    Qt6::Network
-    Qt6::WebSockets
     CURL::libcurl
 )
 
@@ -81,6 +81,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE
 
 # Platform-specific settings
 if(WIN32)
+    target_link_libraries(${PROJECT_NAME} PRIVATE winhttp)
     set_target_properties(${PROJECT_NAME} PROPERTIES
         PREFIX ""
         OUTPUT_NAME "${PROJECT_NAME}"

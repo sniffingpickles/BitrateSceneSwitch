@@ -29,11 +29,10 @@ jobs:
       - name: Install Qt
         uses: jurplel/install-qt-action@v3
         with:
-          version: '6.8.3'
+          version: '6.7.2'
           host: 'windows'
           target: 'desktop'
-          arch: 'win64_msvc2022_64'
-          modules: 'qtwebsockets'
+          arch: 'win64_msvc2019_64'
           cache: true
 
       - name: Cache OBS Studio source
@@ -88,7 +87,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: obs-studio/build
-          key: obs-build-${{ env.OBS_VERSION }}-msvc-release
+          key: obs-build-${{ env.OBS_VERSION }}-msvc-release-v2
 
       - name: Build OBS Libraries
         if: steps.cache-obs-build.outputs.cache-hit != 'true'
@@ -141,18 +140,6 @@ jobs:
           
           # Copy curl DLL
           Copy-Item "curl/bin/libcurl-x64.dll" "release/obs-plugins/64bit/"
-
-          # Qt6WebSockets is not shipped with OBS; place it next to the plugin.
-          # OBS calls SetDllDirectoryW(plugin_dir) before LoadLibrary, so
-          # dependency DLLs in obs-plugins/64bit/ are found automatically.
-          $src = Join-Path "${{ env.Qt6_DIR }}/bin" "Qt6WebSockets.dll"
-          if (Test-Path $src) {
-            Copy-Item $src "release/obs-plugins/64bit/"
-            Write-Host "Bundled Qt6WebSockets.dll from $src"
-          } else {
-            Write-Host "ERROR: Qt6WebSockets.dll not found at $src"
-            exit 1
-          }
           
           # Copy data files
           if (Test-Path "data") {
