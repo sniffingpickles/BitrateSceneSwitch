@@ -61,6 +61,7 @@ void Switcher::stop()
 void Switcher::onStreamingStarted()
 {
     isStreaming_ = true;
+    manualOverride_ = false;
     sameTypeStart_ = std::chrono::steady_clock::now();
     offlineStart_ = std::chrono::steady_clock::now();
     streamStartTime_ = std::chrono::steady_clock::now();
@@ -188,6 +189,11 @@ void Switcher::switcherThread()
         }
 
         handleRistStaleFrameFix();
+
+        if (manualOverride_) {
+            config_->unlockRead();
+            continue;
+        }
 
         std::string current = getCurrentScene();
         if (!isSceneSwitchable(current)) {
@@ -792,14 +798,17 @@ void Switcher::handleChatCommand(const ChatMessage& msg)
 
     switch (msg.command) {
     case ChatCommand::Live:
+        manualOverride_ = false;
         switchToLive();
         announce(formatTemplate(config_->messages.sceneSwitched, config_->scenes.normal));
         break;
     case ChatCommand::Low:
+        manualOverride_ = true;
         switchToLow();
         announce(formatTemplate(config_->messages.sceneSwitched, config_->scenes.low));
         break;
     case ChatCommand::Brb:
+        manualOverride_ = true;
         switchToBrb();
         announce(formatTemplate(config_->messages.sceneSwitched, config_->scenes.offline));
         break;
@@ -807,6 +816,7 @@ void Switcher::handleChatCommand(const ChatMessage& msg)
         if (config_->optionalScenes.privacy.empty()) {
             reply("No privacy scene configured");
         } else {
+            manualOverride_ = true;
             switchToPrivacy();
             announce(formatTemplate(config_->messages.sceneSwitched,
                                     config_->optionalScenes.privacy));
@@ -823,6 +833,7 @@ void Switcher::handleChatCommand(const ChatMessage& msg)
             reply(formatTemplate(config_->messages.statusOffline));
         break;
     case ChatCommand::Trigger:
+        manualOverride_ = false;
         triggerSwitch();
         announce("Triggered switch check");
         break;
@@ -834,6 +845,7 @@ void Switcher::handleChatCommand(const ChatMessage& msg)
         if (msg.args.empty()) {
             reply("Usage: " + config_->chat.cmdSwitchScene + " <scene_name>");
         } else if (switchToSceneByName(msg.args)) {
+            manualOverride_ = true;
             announce(formatTemplate(config_->messages.sceneSwitched, msg.args));
         } else {
             reply("Scene not found: " + msg.args);
