@@ -81,6 +81,8 @@ Section "Install"
     SetOutPath "$INSTDIR\obs-plugins\64bit"
     File "release\obs-plugins\64bit\${PLUGIN_NAME}.dll"
     File "release\obs-plugins\64bit\libcurl-x64.dll"
+    File /nonfatal "release\obs-plugins\64bit\Qt6WebSockets.dll"
+    File /nonfatal "release\obs-plugins\64bit\Qt6Network.dll"
 
     SetOutPath "$INSTDIR\data\obs-plugins\${PLUGIN_NAME}"
     File /r "release\data\obs-plugins\${PLUGIN_NAME}\*.*"
@@ -109,6 +111,8 @@ SectionEnd
 Section "Uninstall"
     Delete "$INSTDIR\obs-plugins\64bit\${PLUGIN_NAME}.dll"
     Delete "$INSTDIR\obs-plugins\64bit\libcurl-x64.dll"
+    Delete "$INSTDIR\obs-plugins\64bit\Qt6WebSockets.dll"
+    Delete "$INSTDIR\obs-plugins\64bit\Qt6Network.dll"
     Delete "$INSTDIR\obs-plugins\64bit\${PLUGIN_NAME}-uninstall.exe"
     RMDir /r "$INSTDIR\data\obs-plugins\${PLUGIN_NAME}"
 
