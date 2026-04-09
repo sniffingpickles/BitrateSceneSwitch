@@ -81,8 +81,11 @@ Section "Install"
     SetOutPath "$INSTDIR\obs-plugins\64bit"
     File "release\obs-plugins\64bit\${PLUGIN_NAME}.dll"
     File "release\obs-plugins\64bit\libcurl-x64.dll"
-    File /nonfatal "release\obs-plugins\64bit\Qt6WebSockets.dll"
-    File /nonfatal "release\obs-plugins\64bit\Qt6Network.dll"
+
+    ; Qt6WebSockets must live next to obs64.exe so the Windows loader
+    ; can resolve it as an implicit dependency of the plugin DLL.
+    SetOutPath "$INSTDIR\bin\64bit"
+    File /nonfatal "release\bin\64bit\Qt6WebSockets.dll"
 
     SetOutPath "$INSTDIR\data\obs-plugins\${PLUGIN_NAME}"
     File /r "release\data\obs-plugins\${PLUGIN_NAME}\*.*"
@@ -111,6 +114,8 @@ SectionEnd
 Section "Uninstall"
     Delete "$INSTDIR\obs-plugins\64bit\${PLUGIN_NAME}.dll"
     Delete "$INSTDIR\obs-plugins\64bit\libcurl-x64.dll"
+    Delete "$INSTDIR\bin\64bit\Qt6WebSockets.dll"
+    ; clean up leftover from earlier builds that put DLLs in the wrong spot
     Delete "$INSTDIR\obs-plugins\64bit\Qt6WebSockets.dll"
     Delete "$INSTDIR\obs-plugins\64bit\Qt6Network.dll"
     Delete "$INSTDIR\obs-plugins\64bit\${PLUGIN_NAME}-uninstall.exe"
