@@ -45,6 +45,7 @@ private:
     void saveSettings();
     void populateSceneComboBox(QComboBox *combo, bool allowEmpty = false);
     void updateStreamingFieldStates();
+    void updateChatPlatformUi();
     static QWidget *wrapInScrollArea(QWidget *content, QWidget *parent);
 
     Config *config_;
@@ -103,7 +104,12 @@ private:
     QLineEdit *chatOauthEdit_;
     QLineEdit *chatAdminsEdit_;
     QCheckBox *chatAnnounceCheckbox_;
-    QPushButton *chatConnectBtn_;
+    QWidget *twitchConnWidget_;
+    QWidget *kickConnWidget_;
+    QLineEdit *kickChannelIdEdit_;
+    QLineEdit *kickChatroomIdEdit_;
+    QCheckBox *chatAutoStopRaidCheckbox_;
+    QCheckBox *chatAnnounceRaidStopCheckbox_;
 
     // Message templates
     QLineEdit *msgSwitchedLiveEdit_;
@@ -115,6 +121,7 @@ private:
     QLineEdit *msgFixEdit_;
     QLineEdit *msgStreamStartedEdit_;
     QLineEdit *msgStreamStoppedEdit_;
+    QLineEdit *msgRaidStopEdit_;
     QLineEdit *msgSceneSwitchedEdit_;
 
     // Default command overrides

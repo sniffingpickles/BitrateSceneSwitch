@@ -34,7 +34,5 @@ CMakeCache.txt
 CMakeFiles/
 cmake_install.cmake
 Makefile
-NOALBS-Source/
-
 # Log files for local review
 logstoreview/

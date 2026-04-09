@@ -12,6 +12,8 @@
 #include "config.hpp"
 #include "stream-server.hpp"
 #include "chat-client.hpp"
+#include "kick-chat.hpp"
+#include "twitch-pubsub.hpp"
 
 namespace BitrateSwitch {
 
@@ -77,11 +79,15 @@ private:
     void handleOfflineTimeout();
     void handleChatCommand(const ChatMessage& msg);
     void handleCustomCommands(const ChatMessage& msg);
+    void handleRaidStop(const std::string &targetLogin, const std::string &displayName);
     void announceSceneChange(SwitchType type);
+    void sendChatMessage(const std::string &text);
     std::string formatTemplate(const std::string &tmpl, const std::string &sceneOverride = "");
 
     Config *config_;
-    std::unique_ptr<ChatClient> chatClient_;
+    std::unique_ptr<ChatClient> twitchChat_;
+    std::unique_ptr<KickChatClient> kickChat_;
+    std::unique_ptr<TwitchPubSubClient> twitchPubSub_;
     mutable std::mutex chatMutex_;
     std::vector<std::unique_ptr<StreamServer>> servers_;
     

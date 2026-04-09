@@ -526,27 +526,44 @@ void SettingsDialog::setupChatTab(QWidget *tab)
     connForm->setContentsMargins(12, 24, 12, 12);
     
     chatEnabledCheckbox_ = new QCheckBox("Enable chat integration", content);
-    chatEnabledCheckbox_->setToolTip("Connect to Twitch chat for bot commands");
+    chatEnabledCheckbox_->setToolTip("Connect to chat for bot commands");
     
     chatPlatformCombo_ = new QComboBox(content);
-    chatPlatformCombo_->addItems({"Twitch"});
+    chatPlatformCombo_->addItems({"Twitch", "Kick"});
     
     chatChannelEdit_ = new QLineEdit(content);
-    chatChannelEdit_->setPlaceholderText("your_channel_name");
+    chatChannelEdit_->setPlaceholderText("channel login or Kick slug");
     
+    twitchConnWidget_ = new QWidget(content);
+    QFormLayout *twitchForm = new QFormLayout(twitchConnWidget_);
+    twitchForm->setContentsMargins(0, 0, 0, 0);
     chatBotUsernameEdit_ = new QLineEdit(content);
     chatBotUsernameEdit_->setPlaceholderText("(optional - uses channel name if empty)");
-    
     chatOauthEdit_ = new QLineEdit(content);
     chatOauthEdit_->setEchoMode(QLineEdit::Password);
     chatOauthEdit_->setPlaceholderText("oauth:xxxxxxxxxxxxxx");
     chatOauthEdit_->setToolTip("Get your OAuth token from https://twitchapps.com/tmi/");
-    
+    twitchForm->addRow("Bot Username:", chatBotUsernameEdit_);
+    twitchForm->addRow("OAuth Token:", chatOauthEdit_);
+
+    kickConnWidget_ = new QWidget(content);
+    QFormLayout *kickForm = new QFormLayout(kickConnWidget_);
+    kickForm->setContentsMargins(0, 0, 0, 0);
+    kickChannelIdEdit_ = new QLineEdit(content);
+    kickChannelIdEdit_->setPlaceholderText("numeric channel id");
+    kickChatroomIdEdit_ = new QLineEdit(content);
+    kickChatroomIdEdit_->setPlaceholderText("numeric chatroom id");
+    kickForm->addRow("Channel ID:", kickChannelIdEdit_);
+    kickForm->addRow("Chatroom ID:", kickChatroomIdEdit_);
+
     connForm->addRow(chatEnabledCheckbox_);
     connForm->addRow("Platform:", chatPlatformCombo_);
     connForm->addRow("Channel:", chatChannelEdit_);
-    connForm->addRow("Bot Username:", chatBotUsernameEdit_);
-    connForm->addRow("OAuth Token:", chatOauthEdit_);
+    connForm->addRow(twitchConnWidget_);
+    connForm->addRow(kickConnWidget_);
+
+    connect(chatPlatformCombo_, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
+            &SettingsDialog::updateChatPlatformUi);
     
     layout->addWidget(connGroup);
     
@@ -561,11 +578,19 @@ void SettingsDialog::setupChatTab(QWidget *tab)
     chatAdminsEdit_->setToolTip("Comma-separated list of users who can use commands");
     
     chatAnnounceCheckbox_ = new QCheckBox("Announce scene changes in chat", content);
+    chatAnnounceCheckbox_->setToolTip("Twitch only; Kick chat send is not available here");
+
+    chatAutoStopRaidCheckbox_ = new QCheckBox("Stop stream when raiding / hosting out", content);
+    chatAnnounceRaidStopCheckbox_ = new QCheckBox("Announce raid stop in chat (Twitch only)", content);
     
     permForm->addRow("Allowed Users:", chatAdminsEdit_);
     permForm->addRow(chatAnnounceCheckbox_);
+    permForm->addRow(chatAutoStopRaidCheckbox_);
+    permForm->addRow(chatAnnounceRaidStopCheckbox_);
     
     layout->addWidget(permGroup);
+
+    updateChatPlatformUi();
     
     // Available commands info
     QGroupBox *cmdGroup = new QGroupBox("Default Commands", content);
@@ -709,6 +734,9 @@ void SettingsDialog::setupMessagesTab(QWidget *tab)
     cmdForm->addRow("Fix attempt:", msgFixEdit_);
     cmdForm->addRow("Stream started:", msgStreamStartedEdit_);
     cmdForm->addRow("Stream stopped:", msgStreamStoppedEdit_);
+    msgRaidStopEdit_ = new QLineEdit(scrollContent);
+    msgRaidStopEdit_->setToolTip("Sent before stopping on raid-out (Twitch). Placeholder: {target}");
+    cmdForm->addRow("Raid stop:", msgRaidStopEdit_);
     cmdForm->addRow("Scene switched:", msgSceneSwitchedEdit_);
     layout->addWidget(cmdGroup);
     
@@ -882,6 +910,11 @@ void SettingsDialog::loadSettings()
     chatBotUsernameEdit_->setText(QString::fromStdString(config_->chat.botUsername));
     chatOauthEdit_->setText(QString::fromStdString(config_->chat.oauthToken));
     chatAnnounceCheckbox_->setChecked(config_->chat.announceSceneChanges);
+    kickChannelIdEdit_->setText(QString::number(config_->chat.kickChannelId));
+    kickChatroomIdEdit_->setText(QString::number(config_->chat.kickChatroomId));
+    chatAutoStopRaidCheckbox_->setChecked(config_->chat.autoStopStreamOnRaid);
+    chatAnnounceRaidStopCheckbox_->setChecked(config_->chat.announceRaidStop);
+    updateChatPlatformUi();
     
     // Convert admins vector to comma-separated string
     QString adminsStr;
@@ -914,6 +947,7 @@ void SettingsDialog::loadSettings()
     msgFixEdit_->setText(QString::fromStdString(config_->messages.fixAttempt));
     msgStreamStartedEdit_->setText(QString::fromStdString(config_->messages.streamStarted));
     msgStreamStoppedEdit_->setText(QString::fromStdString(config_->messages.streamStopped));
+    msgRaidStopEdit_->setText(QString::fromStdString(config_->messages.raidStop));
     msgSceneSwitchedEdit_->setText(QString::fromStdString(config_->messages.sceneSwitched));
 
     // Load custom commands
@@ -996,6 +1030,10 @@ void SettingsDialog::saveSettings()
     config_->chat.botUsername = chatBotUsernameEdit_->text().toStdString();
     config_->chat.oauthToken = chatOauthEdit_->text().toStdString();
     config_->chat.announceSceneChanges = chatAnnounceCheckbox_->isChecked();
+    config_->chat.kickChannelId = kickChannelIdEdit_->text().trimmed().toULongLong();
+    config_->chat.kickChatroomId = kickChatroomIdEdit_->text().trimmed().toULongLong();
+    config_->chat.autoStopStreamOnRaid = chatAutoStopRaidCheckbox_->isChecked();
+    config_->chat.announceRaidStop = chatAnnounceRaidStopCheckbox_->isChecked();
     
     // Parse admins from comma-separated string
     config_->chat.admins.clear();
@@ -1030,6 +1068,7 @@ void SettingsDialog::saveSettings()
     config_->messages.fixAttempt = msgFixEdit_->text().toStdString();
     config_->messages.streamStarted = msgStreamStartedEdit_->text().toStdString();
     config_->messages.streamStopped = msgStreamStoppedEdit_->text().toStdString();
+    config_->messages.raidStop = msgRaidStopEdit_->text().toStdString();
     config_->messages.sceneSwitched = msgSceneSwitchedEdit_->text().toStdString();
 
     // Save custom commands
@@ -1111,6 +1150,14 @@ void SettingsDialog::onSave()
     accept();
 }
 
+void SettingsDialog::updateChatPlatformUi()
+{
+    bool twitch = chatPlatformCombo_->currentIndex() == static_cast<int>(ChatPlatform::Twitch);
+    twitchConnWidget_->setVisible(twitch);
+    kickConnWidget_->setVisible(!twitch);
+    chatAnnounceRaidStopCheckbox_->setEnabled(twitch);
+}
+
 void SettingsDialog::updateStreamingFieldStates()
 {
     bool streaming = switcher_ && switcher_->isCurrentlyStreaming();
@@ -1120,6 +1167,8 @@ void SettingsDialog::updateStreamingFieldStates()
     chatChannelEdit_->setEnabled(!streaming);
     chatBotUsernameEdit_->setEnabled(!streaming);
     chatOauthEdit_->setEnabled(!streaming);
+    kickChannelIdEdit_->setEnabled(!streaming);
+    kickChatroomIdEdit_->setEnabled(!streaming);
 }
 
 void SettingsDialog::refreshStatus()

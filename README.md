@@ -19,7 +19,7 @@
 - **Automatic Scene Switching** - Switch scenes based on bitrate thresholds
 - **Multiple Server Support** - Works with BELABOX, NGINX, SLS, MediaMTX, and more
 - **RTT Monitoring** - SRT round-trip-time based switching
-- **Twitch Chat Integration** - Control scenes via chat commands
+- **Chat Integration** - Control scenes via Twitch or Kick chat commands
 - **Configurable Triggers** - Set low bitrate, offline, and RTT thresholds
 - **Optional Scenes** - Starting, ending, privacy, and refresh scenes
 

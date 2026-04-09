@@ -147,6 +147,10 @@ obs_data_t *Config::save()
     obs_data_set_string(data, "chat_bot_username", chat.botUsername.c_str());
     obs_data_set_string(data, "chat_oauth_token", chat.oauthToken.c_str());
     obs_data_set_bool(data, "chat_announce", chat.announceSceneChanges);
+    obs_data_set_int(data, "kick_channel_id", static_cast<long long>(chat.kickChannelId));
+    obs_data_set_int(data, "kick_chatroom_id", static_cast<long long>(chat.kickChatroomId));
+    obs_data_set_bool(data, "chat_auto_stop_raid", chat.autoStopStreamOnRaid);
+    obs_data_set_bool(data, "chat_announce_raid_stop", chat.announceRaidStop);
     
     // Chat admins
     obs_data_array_t *adminsArray = obs_data_array_create();
@@ -182,6 +186,7 @@ obs_data_t *Config::save()
     obs_data_set_string(data, "msg_fix", messages.fixAttempt.c_str());
     obs_data_set_string(data, "msg_stream_started", messages.streamStarted.c_str());
     obs_data_set_string(data, "msg_stream_stopped", messages.streamStopped.c_str());
+    obs_data_set_string(data, "msg_raid_stop", messages.raidStop.c_str());
     obs_data_set_string(data, "msg_scene_switched", messages.sceneSwitched.c_str());
 
     // Custom commands
@@ -288,7 +293,13 @@ void Config::load(obs_data_t *data)
 
     // Chat configuration
     chat.enabled = obs_data_get_bool(data, "chat_enabled");
-    chat.platform = static_cast<ChatPlatform>(obs_data_get_int(data, "chat_platform"));
+    {
+        int p = static_cast<int>(obs_data_get_int(data, "chat_platform"));
+        if (p != static_cast<int>(ChatPlatform::Kick))
+            chat.platform = ChatPlatform::Twitch;
+        else
+            chat.platform = ChatPlatform::Kick;
+    }
     const char *chatChannel = obs_data_get_string(data, "chat_channel");
     const char *chatBot = obs_data_get_string(data, "chat_bot_username");
     const char *chatOauth = obs_data_get_string(data, "chat_oauth_token");
@@ -296,6 +307,12 @@ void Config::load(obs_data_t *data)
     if (chatBot) chat.botUsername = chatBot;
     if (chatOauth) chat.oauthToken = chatOauth;
     chat.announceSceneChanges = obs_data_get_bool(data, "chat_announce");
+    chat.kickChannelId = static_cast<uint64_t>(obs_data_get_int(data, "kick_channel_id"));
+    chat.kickChatroomId = static_cast<uint64_t>(obs_data_get_int(data, "kick_chatroom_id"));
+    chat.autoStopStreamOnRaid = obs_data_has_user_value(data, "chat_auto_stop_raid")
+        ? obs_data_get_bool(data, "chat_auto_stop_raid") : true;
+    chat.announceRaidStop = obs_data_has_user_value(data, "chat_announce_raid_stop")
+        ? obs_data_get_bool(data, "chat_announce_raid_stop") : true;
     
     // Chat admins
     chat.admins.clear();
@@ -344,6 +361,7 @@ void Config::load(obs_data_t *data)
     loadMsg("msg_fix", messages.fixAttempt);
     loadMsg("msg_stream_started", messages.streamStarted);
     loadMsg("msg_stream_stopped", messages.streamStopped);
+    loadMsg("msg_raid_stop", messages.raidStop);
     loadMsg("msg_scene_switched", messages.sceneSwitched);
 
     // Custom commands

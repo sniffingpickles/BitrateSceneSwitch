@@ -141,23 +141,28 @@ void Switcher::switcherThread()
                 disconnectChat();
         }
 
-        // if chat dropped on its own, reconnect with backoff so
-        // we don't spam twitch and get ourselves rate-limited
-        if (config_->chat.enabled && chatClient_ && !chatClient_->isConnected()) {
+        bool chatConnected = false;
+        {
+            std::lock_guard<std::mutex> clock(chatMutex_);
+            if (kickChat_)
+                chatConnected = kickChat_->isConnected();
+            else if (twitchChat_)
+                chatConnected = twitchChat_->isConnected();
+        }
+
+        if (config_->chat.enabled && !chatConnected) {
             auto now = std::chrono::steady_clock::now();
             if (now >= chatNextReconnect_) {
                 blog(LOG_INFO, "[BitrateSceneSwitch] Chat dropped, retrying in %ds...",
                      chatReconnectDelay_);
                 connectChat();
-                // ramp up: 5s, 10s, 30s, 60s, then stay at 60
                 if (chatReconnectDelay_ == 0)
                     chatReconnectDelay_ = 5;
                 else if (chatReconnectDelay_ < 60)
                     chatReconnectDelay_ = (std::min)(chatReconnectDelay_ * 2, 60);
                 chatNextReconnect_ = now + std::chrono::seconds(chatReconnectDelay_);
             }
-        } else if (config_->chat.enabled && chatClient_ && chatClient_->isConnected()) {
-            // connection is healthy, reset backoff
+        } else if (config_->chat.enabled && chatConnected) {
             chatReconnectDelay_ = 0;
         }
 
@@ -569,7 +574,7 @@ void Switcher::fixMediaSources()
         obs_data_release(settings);
         std::transform(inputStr.begin(), inputStr.end(), inputStr.begin(), ::tolower);
 
-        // Match streaming protocol prefixes (consistent with NOALBS)
+        // Match streaming protocol prefixes (rtmp/srt/udp/rist/rtsp)
         bool isStreamSource =
             inputStr.rfind("rtmp", 0) == 0 ||
             inputStr.rfind("srt", 0) == 0 ||
@@ -652,38 +657,126 @@ void Switcher::connectChat()
 
     std::lock_guard<std::mutex> lock(chatMutex_);
 
-    /* Tear down any existing connection first so we pick up
-       new credentials / channel without leaking the old socket. */
-    if (chatClient_) {
-        chatClient_->disconnect();
-        chatClient_.reset();
+    if (twitchPubSub_) {
+        twitchPubSub_->stop();
+        twitchPubSub_.reset();
+    }
+    if (twitchChat_) {
+        twitchChat_->disconnect();
+        twitchChat_.reset();
+    }
+    if (kickChat_) {
+        kickChat_->disconnect();
+        kickChat_.reset();
     }
 
-    chatClient_ = std::make_unique<ChatClient>();
-    chatClient_->setCommandCallback([this](const ChatMessage &msg) {
+    if (config_->chat.platform == ChatPlatform::Kick) {
+        kickChat_ = std::make_unique<KickChatClient>();
+        kickChat_->setConfig(config_->chat);
+        kickChat_->setCommandCallback([this](const ChatMessage &msg) {
+            handleChatCommand(msg);
+        });
+        kickChat_->setRaidCallback([this](const std::string &slug, const std::string &disp) {
+            handleRaidStop(slug, disp);
+        });
+        if (kickChat_->connect())
+            blog(LOG_INFO, "[BitrateSceneSwitch] Chat connected (Kick)");
+        return;
+    }
+
+    twitchChat_ = std::make_unique<ChatClient>();
+    twitchChat_->setCommandCallback([this](const ChatMessage &msg) {
         handleChatCommand(msg);
     });
-    chatClient_->setConfig(config_->chat);
+    twitchChat_->setConfig(config_->chat);
 
-    if (chatClient_->connect()) {
-        blog(LOG_INFO, "[BitrateSceneSwitch] Chat connected");
+    if (config_->chat.autoStopStreamOnRaid) {
+        twitchPubSub_ = std::make_unique<TwitchPubSubClient>();
+        twitchPubSub_->setRaidCallback([this](const std::string &login, const std::string &disp) {
+            handleRaidStop(login, disp);
+        });
+        twitchPubSub_->start();
+        twitchChat_->setRoomIdCallback([this](const std::string &roomId) {
+            if (twitchPubSub_)
+                twitchPubSub_->subscribeRaid(roomId);
+        });
     }
+
+    if (twitchChat_->connect())
+        blog(LOG_INFO, "[BitrateSceneSwitch] Chat connected (Twitch)");
 }
 
 void Switcher::disconnectChat()
 {
     std::lock_guard<std::mutex> lock(chatMutex_);
-    if (chatClient_) {
-        chatClient_->disconnect();
-        chatClient_.reset();
-        blog(LOG_INFO, "[BitrateSceneSwitch] Chat disconnected");
+    if (twitchPubSub_) {
+        twitchPubSub_->stop();
+        twitchPubSub_.reset();
     }
+    if (twitchChat_) {
+        twitchChat_->disconnect();
+        twitchChat_.reset();
+    }
+    if (kickChat_) {
+        kickChat_->disconnect();
+        kickChat_.reset();
+    }
+    blog(LOG_INFO, "[BitrateSceneSwitch] Chat disconnected");
 }
 
 bool Switcher::isChatConnected() const
 {
     std::lock_guard<std::mutex> lock(chatMutex_);
-    return chatClient_ && chatClient_->isConnected();
+    if (kickChat_)
+        return kickChat_->isConnected();
+    if (twitchChat_)
+        return twitchChat_->isConnected();
+    return false;
+}
+
+void Switcher::sendChatMessage(const std::string &text)
+{
+    std::lock_guard<std::mutex> lock(chatMutex_);
+    if (twitchChat_ && twitchChat_->isConnected())
+        twitchChat_->sendMessage(text);
+}
+
+void Switcher::handleRaidStop(const std::string &targetLogin, const std::string &displayName)
+{
+    bool autoStop = false;
+    bool announce = false;
+    ChatPlatform plat = ChatPlatform::Twitch;
+    std::string tmpl;
+
+    config_->lockRead();
+    autoStop = config_->chat.autoStopStreamOnRaid;
+    announce = config_->chat.announceRaidStop;
+    plat = config_->chat.platform;
+    tmpl = config_->messages.raidStop;
+    config_->unlockRead();
+
+    if (!autoStop)
+        return;
+    if (!isStreaming_)
+        return;
+    if (std::chrono::steady_clock::now() - streamStartTime_ < std::chrono::seconds(60))
+        return;
+
+    if (announce && plat == ChatPlatform::Twitch) {
+        std::string msg = tmpl;
+        const std::string &sub = !targetLogin.empty() ? targetLogin : displayName;
+        for (;;) {
+            size_t pos = msg.find("{target}");
+            if (pos == std::string::npos)
+                break;
+            msg.replace(pos, 8, sub);
+        }
+        sendChatMessage(msg);
+    }
+
+    obs_queue_task(
+        OBS_TASK_UI,
+        [](void *) { obs_frontend_streaming_stop(); }, nullptr, false);
 }
 
 void Switcher::handleChatCommand(const ChatMessage& msg)
@@ -691,11 +784,7 @@ void Switcher::handleChatCommand(const ChatMessage& msg)
     blog(LOG_INFO, "[BitrateSceneSwitch] Chat command from %s: %s", 
          msg.username.c_str(), msg.message.c_str());
 
-    auto reply = [this](const std::string &text) {
-        std::lock_guard<std::mutex> lock(chatMutex_);
-        if (chatClient_ && chatClient_->isConnected())
-            chatClient_->sendMessage(text);
-    };
+    auto reply = [this](const std::string &text) { sendChatMessage(text); };
     auto announce = [this, &reply](const std::string &text) {
         if (config_->chat.announceSceneChanges)
             reply(text);
@@ -802,9 +891,7 @@ void Switcher::announceSceneChange(SwitchType type)
         return;
     }
 
-    std::lock_guard<std::mutex> lock(chatMutex_);
-    if (chatClient_ && chatClient_->isConnected())
-        chatClient_->sendMessage(formatTemplate(tmpl));
+    sendChatMessage(formatTemplate(tmpl));
 }
 
 std::string Switcher::formatTemplate(const std::string &tmpl, const std::string &sceneOverride)
@@ -849,10 +936,7 @@ void Switcher::handleCustomCommands(const ChatMessage& msg)
         
         // Match exact command or command with trailing space (for args)
         if (msgLower == triggerLower || msgLower.rfind(triggerLower + " ", 0) == 0) {
-            std::lock_guard<std::mutex> lock(chatMutex_);
-            if (chatClient_ && chatClient_->isConnected()) {
-                chatClient_->sendMessage(formatTemplate(cmd.response));
-            }
+            sendChatMessage(formatTemplate(cmd.response));
             return;
         }
     }

@@ -1,9 +1,16 @@
 #include "chat-client.hpp"
 #include <obs-module.h>
+#include <obs-frontend-api.h>
 #include <algorithm>
 #include <cstring>
+#include <utility>
 
 namespace BitrateSwitch {
+
+struct RoomIdPack {
+    std::function<void(const std::string &)> fn;
+    std::string id;
+};
 
 // winsock init is handled by curl_global_init in plugin-main,
 // no need to mess with WSAStartup/WSACleanup here
@@ -23,6 +30,12 @@ void ChatClient::setConfig(const ChatConfig& config)
 void ChatClient::setCommandCallback(CommandCallback callback)
 {
     callback_ = callback;
+}
+
+void ChatClient::setRoomIdCallback(std::function<void(const std::string &)> cb)
+{
+    roomIdCallback_ = std::move(cb);
+    roomIdSent_ = false;
 }
 
 bool ChatClient::connect()
@@ -150,8 +163,47 @@ void ChatClient::receiveLoop()
     }
 }
 
+void ChatClient::extractRoomIdFromTags(const std::string &raw)
+{
+    if (roomIdSent_ || raw.empty() || raw[0] != '@')
+        return;
+    size_t sp = raw.find(' ');
+    if (sp == std::string::npos)
+        return;
+    std::string tags = raw.substr(1, sp - 1);
+    size_t pos = 0;
+    while (pos < tags.size()) {
+        size_t eq = tags.find('=', pos);
+        if (eq == std::string::npos)
+            break;
+        size_t semi = tags.find(';', eq);
+        std::string key = tags.substr(pos, eq - pos);
+        std::string val = (semi == std::string::npos) ? tags.substr(eq + 1)
+                                                      : tags.substr(eq + 1, semi - eq - 1);
+        if (key == "room-id") {
+            roomIdSent_ = true;
+            if (roomIdCallback_) {
+                auto *p = new RoomIdPack{roomIdCallback_, val};
+                obs_queue_task(
+                    OBS_TASK_UI,
+                    [](void *vp) {
+                        auto *pack = static_cast<RoomIdPack *>(vp);
+                        pack->fn(pack->id);
+                        delete pack;
+                    },
+                    p,
+                    false);
+            }
+            return;
+        }
+        pos = (semi == std::string::npos) ? tags.size() : semi + 1;
+    }
+}
+
 void ChatClient::handleMessage(const std::string& raw)
 {
+    extractRoomIdFromTags(raw);
+
     if (raw.substr(0, 4) == "PING") {
         sendRaw("PONG" + raw.substr(4) + "\r\n");
         return;
@@ -198,6 +250,12 @@ ChatMessage ChatClient::parseMessage(const std::string& raw)
 
 ChatCommand ChatClient::parseCommand(const std::string& message, std::string& args)
 {
+    return parseCommandForConfig(config_, message, args);
+}
+
+ChatCommand ChatClient::parseCommandForConfig(const ChatConfig &cfg, const std::string &message,
+                                              std::string &args)
+{
     std::string lower = message;
     std::transform(lower.begin(), lower.end(), lower.begin(), ::tolower);
     
@@ -213,22 +271,22 @@ ChatCommand ChatClient::parseCommand(const std::string& message, std::string& ar
         return false;
     };
     
-    if (checkCmd(config_.cmdLive, ChatCommand::Live)) return ChatCommand::Live;
-    if (checkCmd(config_.cmdLow, ChatCommand::Low)) return ChatCommand::Low;
-    if (checkCmd(config_.cmdBrb, ChatCommand::Brb)) return ChatCommand::Brb;
-    if (checkCmd(config_.cmdPrivacy, ChatCommand::Privacy)) return ChatCommand::Privacy;
-    if (checkCmd(config_.cmdRefresh, ChatCommand::Refresh)) return ChatCommand::Refresh;
-    if (checkCmd(config_.cmdStatus, ChatCommand::Status)) return ChatCommand::Status;
-    if (checkCmd(config_.cmdTrigger, ChatCommand::Trigger)) return ChatCommand::Trigger;
-    if (checkCmd(config_.cmdFix, ChatCommand::Fix)) return ChatCommand::Fix;
-    if (checkCmd(config_.cmdSwitchScene, ChatCommand::SwitchScene)) return ChatCommand::SwitchScene;
-    if (config_.cmdSwitchScene == "!s") {
+    if (checkCmd(cfg.cmdLive, ChatCommand::Live)) return ChatCommand::Live;
+    if (checkCmd(cfg.cmdLow, ChatCommand::Low)) return ChatCommand::Low;
+    if (checkCmd(cfg.cmdBrb, ChatCommand::Brb)) return ChatCommand::Brb;
+    if (checkCmd(cfg.cmdPrivacy, ChatCommand::Privacy)) return ChatCommand::Privacy;
+    if (checkCmd(cfg.cmdRefresh, ChatCommand::Refresh)) return ChatCommand::Refresh;
+    if (checkCmd(cfg.cmdStatus, ChatCommand::Status)) return ChatCommand::Status;
+    if (checkCmd(cfg.cmdTrigger, ChatCommand::Trigger)) return ChatCommand::Trigger;
+    if (checkCmd(cfg.cmdFix, ChatCommand::Fix)) return ChatCommand::Fix;
+    if (checkCmd(cfg.cmdSwitchScene, ChatCommand::SwitchScene)) return ChatCommand::SwitchScene;
+    if (cfg.cmdSwitchScene == "!s") {
         if (checkCmd("!ss", ChatCommand::SwitchScene)) return ChatCommand::SwitchScene;
     } else {
         if (checkCmd("!s", ChatCommand::SwitchScene)) return ChatCommand::SwitchScene;
     }
-    if (checkCmd(config_.cmdStart, ChatCommand::Start)) return ChatCommand::Start;
-    if (checkCmd(config_.cmdStop, ChatCommand::Stop)) return ChatCommand::Stop;
+    if (checkCmd(cfg.cmdStart, ChatCommand::Start)) return ChatCommand::Start;
+    if (checkCmd(cfg.cmdStop, ChatCommand::Stop)) return ChatCommand::Stop;
     
     return ChatCommand::None;
 }

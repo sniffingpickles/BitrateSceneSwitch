@@ -96,6 +96,7 @@ struct MessageTemplates {
     std::string streamStarted = "Starting stream...";
     std::string streamStopped = "Stopping stream...";
     std::string sceneSwitched = "Switched to scene: {scene}";
+    std::string raidStop = "Stopping stream (raid to {target})";
 };
 
 // Custom chat command: user-defined trigger -> message template
@@ -107,18 +108,27 @@ struct CustomChatCommand {
 
 // Chat platform type
 enum class ChatPlatform {
-    Twitch = 0
+    Twitch = 0,
+    Kick = 1
 };
 
 // Chat configuration for bot commands
 struct ChatConfig {
     bool enabled = false;
     ChatPlatform platform = ChatPlatform::Twitch;
-    std::string channel;                      // Channel to connect to (without #)
+    std::string channel;                      // Twitch: login. Kick: channel slug (lowercase)
     std::string botUsername;                  // Bot username for login
-    std::string oauthToken;                   // OAuth token (oauth:xxx for Twitch)
+    std::string oauthToken;                   // Twitch: oauth:...  (unused for Kick read-only)
     std::vector<std::string> admins;          // Users allowed to use commands
-    bool announceSceneChanges = true;         // Announce scene switches in chat
+    bool announceSceneChanges = true;         // Twitch: announce in chat (Kick cannot send)
+
+    // Kick: numeric ids (channel page / network tools)
+    uint64_t kickChannelId = 0;
+    uint64_t kickChatroomId = 0;
+
+    // Twitch PubSub raid.* and Kick host/raid events: optional auto-stop when raiding out
+    bool autoStopStreamOnRaid = true;
+    bool announceRaidStop = true;
     
     // Command prefixes (customizable)
     std::string cmdLive = "!live";

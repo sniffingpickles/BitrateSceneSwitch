@@ -56,12 +56,16 @@ public:
     
     void setConfig(const ChatConfig& config);
     void setCommandCallback(CommandCallback callback);
+    void setRoomIdCallback(std::function<void(const std::string &)> cb);
     
     bool connect();
     void disconnect();
     bool isConnected() const;
     
     void sendMessage(const std::string& message);
+
+    static ChatCommand parseCommandForConfig(const ChatConfig &cfg, const std::string &message,
+                                             std::string &args);
     
 private:
     void receiveLoop();
@@ -70,9 +74,12 @@ private:
     ChatCommand parseCommand(const std::string& message, std::string& args);
     bool isAdmin(const std::string& username);
     void sendRaw(const std::string& data);
+    void extractRoomIdFromTags(const std::string &raw);
     
     ChatConfig config_;
     CommandCallback callback_;
+    std::function<void(const std::string &)> roomIdCallback_;
+    bool roomIdSent_ = false;
     
     SOCKET socket_ = INVALID_SOCKET;
     std::thread receiveThread_;

@@ -72,7 +72,7 @@ BitrateInfo NginxServer::fetchStats()
     bool hasActive = streamBlock.find("<active") != std::string::npos;
     if (!hasActive) return info;
 
-    // Use bw_video (bits/s) converted to kbps, matching NOALBS behavior
+    // Use bw_video (bits/s) converted to kbps
     std::string bwVideoStr = extractXmlValue(streamBlock, "bw_video");
     if (!bwVideoStr.empty()) {
         try {
