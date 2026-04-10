@@ -178,9 +178,10 @@ void Switcher::switcherThread()
 
         // always poll so the status bar shows live bitrate
         // even when we're not switching scenes
+        bool polledOffline;
         {
             std::lock_guard<std::mutex> lock(mutex_);
-            getOnlineServerStatusLocked(nullptr);
+            polledOffline = (getOnlineServerStatusLocked(nullptr) == SwitchType::Offline);
         }
 
         if (config_->onlyWhenStreaming && !isStreaming_) {
@@ -188,7 +189,7 @@ void Switcher::switcherThread()
             continue;
         }
 
-        handleRistStaleFrameFix();
+        handleRistStaleFrameFix(polledOffline);
 
         if (manualOverride_) {
             config_->unlockRead();
@@ -312,12 +313,12 @@ void Switcher::doSwitchCheck()
     }
 }
 
-void Switcher::handleRistStaleFrameFix()
+void Switcher::handleRistStaleFrameFix(bool offline)
 {
     if (config_->options.ristStaleFrameFixSec == 0)
         return;
 
-    if (prevSwitchType_ == SwitchType::Offline) {
+    if (offline) {
         if (!hasBeenOnline_ || ristFixFired_)
             return;
 
@@ -330,7 +331,38 @@ void Switcher::handleRistStaleFrameFix()
             if (elapsed >= delaySec) {
                 blog(LOG_INFO, "[BitrateSceneSwitch] RIST stale frame fix: refreshing media sources after %u sec offline",
                      config_->options.ristStaleFrameFixSec);
-                fixMediaSources();
+                obs_queue_task(
+                    OBS_TASK_UI,
+                    [](void *) {
+                        obs_enum_sources(
+                            [](void *, obs_source_t *source) -> bool {
+                                const char *sourceId = obs_source_get_id(source);
+                                if (!sourceId)
+                                    return true;
+                                if (strcmp(sourceId, "ffmpeg_source") != 0 &&
+                                    strcmp(sourceId, "vlc_source") != 0)
+                                    return true;
+
+                                obs_data_t *settings = obs_source_get_settings(source);
+                                if (!settings)
+                                    return true;
+                                const char *input = obs_data_get_string(settings, "input");
+                                bool isRist = input && *input &&
+                                              (strncmp(input, "rist", 4) == 0 ||
+                                               strncmp(input, "RIST", 4) == 0);
+                                obs_data_release(settings);
+
+                                if (isRist) {
+                                    obs_source_media_restart(source);
+                                    blog(LOG_INFO,
+                                         "[BitrateSceneSwitch] RIST fix: restarted %s",
+                                         obs_source_get_name(source));
+                                }
+                                return true;
+                            },
+                            nullptr);
+                    },
+                    nullptr, false);
                 ristFixPending_ = false;
                 ristFixFired_ = true;
             }

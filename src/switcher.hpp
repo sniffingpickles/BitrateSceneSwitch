@@ -121,7 +121,7 @@ private:
     bool ristFixFired_ = false;
     bool hasBeenOnline_ = false;
     std::chrono::steady_clock::time_point ristFixTriggerTime_;
-    void handleRistStaleFrameFix();
+    void handleRistStaleFrameFix(bool offline);
 };
 
 } // namespace BitrateSwitch
