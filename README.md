@@ -123,6 +123,7 @@ console.log(resp.bitrateKbps, resp.rttMs, resp.currentScene);
 |--------|-------------------|
 | **BELABOX** | `https://cloud.belabox.net/stats` |
 | **NGINX RTMP** | `http://localhost:8080/stat` |
+| **[Moo RIST](https://github.com/moo-the-cow/moo-rist-hosting-native)** | `http://localhost:8080/stats` |
 | **SRT Live Server** | `http://localhost:8181/stats` |
 | **MediaMTX** | `http://localhost:9997/v3/paths/get/` |
 | **Node Media Server** | `http://localhost:8000/api/streams` |
