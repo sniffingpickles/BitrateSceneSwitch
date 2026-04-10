@@ -211,10 +211,12 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
       - name: Setup MSVC for ARM64
         uses: ilammy/msvc-dev-cmd@v1
         with:
           arch: arm64
+
       - name: Install Qt for ARM64 and Host Qt for tools
         shell: pwsh
         run: |
@@ -233,23 +235,27 @@ jobs:
             $qt6CmakeDir = $qt6CmakePath.DirectoryName
             "Qt6_CMAKE_DIR=$qt6CmakeDir" | Out-File -FilePath $env:GITHUB_ENV -Append
           } else { exit 1 }
+
       - name: Cache SIMDe
         id: cache-simde
         uses: actions/cache@v4
         with:
           path: simde
           key: simde
+
       - name: Download SIMDe
         if: steps.cache-simde.outputs.cache-hit != 'true'
         shell: pwsh
         run: |
           git clone --depth 1 https://github.com/simd-everywhere/simde.git simde
+
       - name: Cache OBS Studio source (fork)
         id: cache-obs
         uses: actions/cache@v4
         with:
           path: obs-studio
           key: obs-studio-fork-arm64
+
       - name: Clone OBS Studio with ARM64 support
         if: steps.cache-obs.outputs.cache-hit != 'true'
         shell: pwsh
@@ -258,12 +264,14 @@ jobs:
           cd obs-studio
           git submodule update --init --recursive --depth 1
           cd ..
+
       - name: Cache OBS deps (ARM64)
         id: cache-deps
         uses: actions/cache@v4
         with:
           path: obs-deps
           key: obs-deps-2025-08-23-arm64
+
       - name: Download OBS deps for ARM64
         if: steps.cache-deps.outputs.cache-hit != 'true'
         shell: pwsh
@@ -271,12 +279,14 @@ jobs:
           $depsUrl = "https://github.com/obsproject/obs-deps/releases/download/2025-08-23/windows-deps-2025-08-23-arm64.zip"
           Invoke-WebRequest -Uri $depsUrl -OutFile deps.zip
           Expand-Archive deps.zip -DestinationPath obs-deps
+
       - name: Cache CURL for ARM64
         id: cache-curl
         uses: actions/cache@v4
         with:
           path: curl
           key: curl-latest-arm64
+
       - name: Download CURL for ARM64
         if: steps.cache-curl.outputs.cache-hit != 'true'
         shell: pwsh
@@ -287,8 +297,17 @@ jobs:
           if ($curlFolder) { Move-Item "$($curlFolder.FullName)/*" curl/ -Force }
           else { Move-Item "curl-download/*" curl/ -Force }
           Remove-Item curl-download -Recurse -Force
+
+      # --- Cache OBS build (restore only) ---
+      - name: Cache OBS build
+        id: cache-obs-build
+        uses: actions/cache@v4
+        with:
+          path: obs-studio/build_arm64
+          key: obs-build-fork-arm64
+
       - name: Build OBS Libraries for ARM64 (using fork)
-        id: build-obs-arm64
+        if: steps.cache-obs-build.outputs.cache-hit != 'true'
         shell: pwsh
         run: |
           cd obs-studio
@@ -304,12 +323,7 @@ jobs:
             -DENABLE_WEBRTC=OFF
           cmake --build --preset windows-arm64 --target libobs obs-frontend-api
           cd ..
-      - name: Cache OBS build
-        id: cache-obs-build
-        uses: actions/cache@v4
-        with:
-          path: obs-studio/build_arm64
-          key: obs-build-fork-arm64
+
       - name: Configure Plugin for ARM64
         shell: pwsh
         run: |
@@ -326,7 +340,6 @@ jobs:
           $qtCmakeDirCMake = $qtCmakeDir -replace '\\', '/'
           $hostQtPathCMake = $hostQtPath -replace '\\', '/'
           
-          # Create necessary directories
           New-Item -ItemType Directory -Force -Path "$obsBuildDir/libobs" | Out-Null
           New-Item -ItemType Directory -Force -Path "$obsBuildDir/UI/obs-frontend-api" | Out-Null
           New-Item -ItemType Directory -Force -Path "$obsBuildDir/deps/w32-pthreads" | Out-Null
@@ -384,8 +397,10 @@ jobs:
             -DSIMDe_DIR="$simdeDir" `
             -DCURL_INCLUDE_DIR="$curlDirCMake/include" `
             -DCURL_LIBRARY="$curlLibPath"
+
       - name: Build Plugin (ARM64)
         run: cmake --build build --config RelWithDebInfo
+
       - name: Package (ARM64)
         shell: pwsh
         run: |
@@ -394,6 +409,7 @@ jobs:
           $curlDll = Get-ChildItem -Path curl -Filter "*.dll" -Recurse | Select-Object -First 1
           if ($curlDll) { Copy-Item $curlDll.FullName "release/obs-plugins/64bit/" }
           if (Test-Path "data") { Copy-Item -Recurse "data/*" "release/data/obs-plugins/${{ env.PLUGIN_NAME }}/" }
+
       - name: Upload Artifact (ARM64)
         uses: actions/upload-artifact@v4
         with:
