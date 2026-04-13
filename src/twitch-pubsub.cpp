@@ -104,7 +104,7 @@ void TwitchPubSubClient::flushListen()
 
 	QJsonObject data;
 	data["topics"] = qtopics;
-	data["auth_token"] = QJsonValue(QJsonValue::Null);
+	data["auth_token"] = QStringLiteral("");
 
 	QJsonObject root;
 	root["type"] = QStringLiteral("LISTEN");
@@ -127,6 +127,12 @@ void TwitchPubSubClient::workerMain()
 
 	connected_ = true;
 	flushListen();
+
+	QJsonObject initPing;
+	initPing["type"] = QStringLiteral("PING");
+	ws_.send(QJsonDocument(initPing)
+			 .toJson(QJsonDocument::Compact)
+			 .toStdString());
 
 	auto lastPing = std::chrono::steady_clock::now();
 

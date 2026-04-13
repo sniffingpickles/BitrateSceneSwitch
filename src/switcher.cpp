@@ -143,15 +143,21 @@ void Switcher::switcherThread()
         }
 
         bool chatConnected = false;
+        bool pubsubNeeded = false;
+        bool pubsubConnected = false;
         {
             std::lock_guard<std::mutex> clock(chatMutex_);
             if (kickChat_)
                 chatConnected = kickChat_->isConnected();
             else if (twitchChat_)
                 chatConnected = twitchChat_->isConnected();
+            if (twitchPubSub_) {
+                pubsubNeeded = true;
+                pubsubConnected = twitchPubSub_->isConnected();
+            }
         }
 
-        if (config_->chat.enabled && !chatConnected) {
+        if (config_->chat.enabled && (!chatConnected || (pubsubNeeded && !pubsubConnected))) {
             auto now = std::chrono::steady_clock::now();
             if (now >= chatNextReconnect_) {
                 blog(LOG_INFO, "[BitrateSceneSwitch] Chat dropped, retrying in %ds...",
@@ -733,10 +739,11 @@ void Switcher::connectChat()
         twitchPubSub_->setRaidCallback([this](const std::string &login, const std::string &disp) {
             handleRaidStop(login, disp);
         });
-        twitchPubSub_->start();
         twitchChat_->setRoomIdCallback([this](const std::string &roomId) {
-            if (twitchPubSub_)
+            if (twitchPubSub_) {
                 twitchPubSub_->subscribeRaid(roomId);
+                twitchPubSub_->start();
+            }
         });
     }
 
