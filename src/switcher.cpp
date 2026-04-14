@@ -141,24 +141,34 @@ void Switcher::switcherThread()
                 connectChat();
             else
                 disconnectChat();
+            chatNextReconnect_ = std::chrono::steady_clock::now() +
+                                 std::chrono::seconds(10);
+            continue;
         }
 
         bool chatConnected = false;
-        bool pubsubNeeded = false;
-        bool pubsubConnected = false;
         {
             std::lock_guard<std::mutex> clock(chatMutex_);
             if (kickChat_)
                 chatConnected = kickChat_->isConnected();
             else if (twitchChat_)
                 chatConnected = twitchChat_->isConnected();
-            if (twitchPubSub_) {
-                pubsubNeeded = true;
-                pubsubConnected = twitchPubSub_->isConnected();
+
+            // Reconnect PubSub if it was connected but dropped,
+            // without tearing down the healthy IRC connection.
+            if (twitchPubSub_ && !twitchPubSub_->isConnected() &&
+                pubsubWasConnected_) {
+                blog(LOG_INFO,
+                     "[BitrateSceneSwitch] PubSub dropped, reconnecting...");
+                twitchPubSub_->stop();
+                twitchPubSub_->start();
+                pubsubWasConnected_ = false;
+            } else if (twitchPubSub_ && twitchPubSub_->isConnected()) {
+                pubsubWasConnected_ = true;
             }
         }
 
-        if (config_->chat.enabled && (!chatConnected || (pubsubNeeded && !pubsubConnected))) {
+        if (config_->chat.enabled && !chatConnected) {
             auto now = std::chrono::steady_clock::now();
             if (now >= chatNextReconnect_) {
                 blog(LOG_INFO, "[BitrateSceneSwitch] Chat dropped, retrying in %ds...",
@@ -766,14 +776,9 @@ void Switcher::connectChat()
         twitchPubSub_->stop();
         twitchPubSub_.reset();
     }
-    if (twitchChat_) {
-        twitchChat_->disconnect();
-        twitchChat_.reset();
-    }
-    if (kickChat_) {
-        kickChat_->disconnect();
-        kickChat_.reset();
-    }
+    twitchChat_.reset();
+    kickChat_.reset();
+    pubsubWasConnected_ = false;
 
     if (config_->chat.platform == ChatPlatform::Kick) {
         kickChat_ = std::make_unique<KickChatClient>();
@@ -801,7 +806,11 @@ void Switcher::connectChat()
             handleRaidStop(login, disp);
         });
         twitchChat_->setRoomIdCallback([this](const std::string &roomId) {
+            std::lock_guard<std::mutex> lk(chatMutex_);
             if (twitchPubSub_) {
+                blog(LOG_INFO,
+                     "[BitrateSceneSwitch] Got room-id %s, starting PubSub",
+                     roomId.c_str());
                 twitchPubSub_->subscribeRaid(roomId);
                 twitchPubSub_->start();
             }
@@ -819,14 +828,9 @@ void Switcher::disconnectChat()
         twitchPubSub_->stop();
         twitchPubSub_.reset();
     }
-    if (twitchChat_) {
-        twitchChat_->disconnect();
-        twitchChat_.reset();
-    }
-    if (kickChat_) {
-        kickChat_->disconnect();
-        kickChat_.reset();
-    }
+    twitchChat_.reset();
+    kickChat_.reset();
+    pubsubWasConnected_ = false;
     blog(LOG_INFO, "[BitrateSceneSwitch] Chat disconnected");
 }
 

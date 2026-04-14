@@ -99,6 +99,7 @@ private:
     std::atomic<bool> isRecording_{false};
     std::atomic<bool> chatReconnectRequested_{false};
     std::atomic<bool> manualOverride_{false};
+    bool pubsubWasConnected_ = false;
     std::chrono::steady_clock::time_point chatNextReconnect_;
     int chatReconnectDelay_ = 0;
     mutable std::mutex mutex_;

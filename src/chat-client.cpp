@@ -103,8 +103,8 @@ bool ChatClient::connect()
 
 void ChatClient::disconnect()
 {
+    bool wasConnected = connected_.exchange(false);
     running_ = false;
-    connected_ = false;
     
     if (socket_ != INVALID_SOCKET) {
         closesocket(socket_);
@@ -115,7 +115,8 @@ void ChatClient::disconnect()
         receiveThread_.join();
     }
     
-    blog(LOG_INFO, "[BitrateSceneSwitch] Chat: Disconnected");
+    if (wasConnected)
+        blog(LOG_INFO, "[BitrateSceneSwitch] Chat: Disconnected");
 }
 
 bool ChatClient::isConnected() const
