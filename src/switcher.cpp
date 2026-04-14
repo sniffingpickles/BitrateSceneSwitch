@@ -865,12 +865,25 @@ void Switcher::handleRaidStop(const std::string &targetLogin, const std::string 
     tmpl = config_->messages.raidStop;
     config_->unlockRead();
 
-    if (!autoStop)
+    blog(LOG_INFO,
+         "[BitrateSceneSwitch] Raid event received: target=%s display=%s",
+         targetLogin.c_str(), displayName.c_str());
+
+    if (!autoStop) {
+        blog(LOG_INFO, "[BitrateSceneSwitch] Raid stop disabled, ignoring");
         return;
-    if (!isStreaming_)
+    }
+    if (!isStreaming_) {
+        blog(LOG_INFO, "[BitrateSceneSwitch] Not streaming, ignoring raid");
         return;
-    if (std::chrono::steady_clock::now() - streamStartTime_ < std::chrono::seconds(60))
+    }
+    if (std::chrono::steady_clock::now() - streamStartTime_ < std::chrono::seconds(60)) {
+        blog(LOG_INFO, "[BitrateSceneSwitch] Stream started <60s ago, ignoring raid");
         return;
+    }
+
+    blog(LOG_INFO, "[BitrateSceneSwitch] Stopping stream due to raid -> %s",
+         targetLogin.c_str());
 
     if (announce && plat == ChatPlatform::Twitch) {
         std::string msg = tmpl;

@@ -113,11 +113,16 @@ void TwitchPubSubClient::flushListen()
 
 	std::string json =
 		QJsonDocument(root).toJson(QJsonDocument::Compact).toStdString();
+	blog(LOG_INFO, "[BitrateSceneSwitch] PubSub: sending LISTEN for %zu topic(s)",
+	     copy.size());
 	ws_.send(json);
 }
 
 void TwitchPubSubClient::workerMain()
 {
+	blog(LOG_INFO, "[BitrateSceneSwitch] PubSub: Connecting to %s",
+	     kPubSubUrl);
+
 	if (!ws_.connect(kPubSubUrl)) {
 		blog(LOG_WARNING,
 		     "[BitrateSceneSwitch] PubSub: failed to connect");
@@ -125,6 +130,7 @@ void TwitchPubSubClient::workerMain()
 		return;
 	}
 
+	blog(LOG_INFO, "[BitrateSceneSwitch] PubSub: Connected");
 	connected_ = true;
 	flushListen();
 
@@ -185,8 +191,27 @@ void TwitchPubSubClient::workerMain()
 		if (err.error != QJsonParseError::NoError || !doc.isObject())
 			continue;
 		QJsonObject o = doc.object();
-		if (o.value(QLatin1String("type")).toString() !=
-		    QLatin1String("MESSAGE"))
+		QString msgType = o.value(QLatin1String("type")).toString();
+
+		if (msgType == QLatin1String("RESPONSE")) {
+			QString error = o.value(QLatin1String("error")).toString();
+			if (!error.isEmpty())
+				blog(LOG_WARNING,
+				     "[BitrateSceneSwitch] PubSub LISTEN error: %s",
+				     error.toUtf8().constData());
+			else
+				blog(LOG_INFO,
+				     "[BitrateSceneSwitch] PubSub LISTEN acknowledged");
+			continue;
+		}
+
+		if (msgType == QLatin1String("PONG")) {
+			blog(LOG_DEBUG,
+			     "[BitrateSceneSwitch] PubSub: PONG received");
+			continue;
+		}
+
+		if (msgType != QLatin1String("MESSAGE"))
 			continue;
 		QJsonObject data = o.value(QLatin1String("data")).toObject();
 		QString innerStr =
@@ -213,12 +238,20 @@ void TwitchPubSubClient::workerMain()
 		if (targetLogin.isEmpty())
 			continue;
 
+		blog(LOG_INFO,
+		     "[BitrateSceneSwitch] PubSub: raid_go_v2 detected -> %s (%s)",
+		     targetLogin.toUtf8().constData(),
+		     display.toUtf8().constData());
+
 		auto now = std::chrono::steady_clock::now();
 		if (haveLastRaidEmit_ &&
 		    std::chrono::duration_cast<std::chrono::seconds>(
 			    now - lastRaidEmit_)
-				    .count() < 10)
+				    .count() < 10) {
+			blog(LOG_INFO,
+			     "[BitrateSceneSwitch] PubSub: duplicate raid suppressed (10s cooldown)");
 			continue;
+		}
 		haveLastRaidEmit_ = true;
 		lastRaidEmit_ = now;
 
@@ -228,6 +261,7 @@ void TwitchPubSubClient::workerMain()
 					  display.toStdString());
 	}
 
+	blog(LOG_WARNING, "[BitrateSceneSwitch] PubSub: Disconnected");
 	ws_.disconnect();
 	connected_ = false;
 }
