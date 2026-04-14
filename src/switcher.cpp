@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cstring>
 #include <thread>
+#include <vector>
 
 namespace BitrateSwitch {
 
@@ -659,39 +660,99 @@ void Switcher::triggerSwitch()
     blog(LOG_INFO, "[BitrateSceneSwitch] Manual trigger of switch check");
 }
 
-bool Switcher::switchToSceneByName(const std::string& name)
+static double damerauLevenshteinSimilarity(const std::string &a,
+					    const std::string &b)
 {
-    // Get all scenes and find one matching case-insensitively
-    obs_frontend_source_list scenes = {};
-    obs_frontend_get_scenes(&scenes);
-    
-    std::string nameLower = name;
-    std::transform(nameLower.begin(), nameLower.end(), nameLower.begin(), ::tolower);
-    
-    std::string foundScene;
-    for (size_t i = 0; i < scenes.sources.num; i++) {
-        obs_source_t *source = scenes.sources.array[i];
-        const char *sceneName = obs_source_get_name(source);
-        if (sceneName) {
-            std::string sceneNameLower = sceneName;
-            std::transform(sceneNameLower.begin(), sceneNameLower.end(), sceneNameLower.begin(), ::tolower);
-            if (sceneNameLower == nameLower) {
-                foundScene = sceneName;
-                break;
-            }
-        }
-    }
-    
-    obs_frontend_source_list_free(&scenes);
-    
-    if (!foundScene.empty()) {
-        switchToScene(foundScene);
-        blog(LOG_INFO, "[BitrateSceneSwitch] Manual switch to scene: %s", foundScene.c_str());
-        return true;
-    }
-    
-    blog(LOG_WARNING, "[BitrateSceneSwitch] Scene not found: %s", name.c_str());
-    return false;
+	size_t la = a.size(), lb = b.size();
+	if (la == 0 && lb == 0)
+		return 1.0;
+	if (la == 0 || lb == 0)
+		return 0.0;
+
+	std::vector<std::vector<size_t>> d(la + 1,
+					   std::vector<size_t>(lb + 1, 0));
+	for (size_t i = 0; i <= la; i++)
+		d[i][0] = i;
+	for (size_t j = 0; j <= lb; j++)
+		d[0][j] = j;
+
+	for (size_t i = 1; i <= la; i++) {
+		for (size_t j = 1; j <= lb; j++) {
+			size_t cost = (a[i - 1] == b[j - 1]) ? 0 : 1;
+			d[i][j] = (std::min)({d[i - 1][j] + 1,
+					      d[i][j - 1] + 1,
+					      d[i - 1][j - 1] + cost});
+			if (i > 1 && j > 1 && a[i - 1] == b[j - 2] &&
+			    a[i - 2] == b[j - 1])
+				d[i][j] = (std::min)(d[i][j],
+						     d[i - 2][j - 2] + 1);
+		}
+	}
+
+	double maxLen = static_cast<double>((std::max)(la, lb));
+	return 1.0 - static_cast<double>(d[la][lb]) / maxLen;
+}
+
+bool Switcher::switchToSceneByName(const std::string &name)
+{
+	obs_frontend_source_list scenes = {};
+	obs_frontend_get_scenes(&scenes);
+
+	std::string input = name;
+	std::transform(input.begin(), input.end(), input.begin(), ::tolower);
+
+	std::string bestScene;
+	double bestScore = -1.0;
+
+	for (size_t i = 0; i < scenes.sources.num; i++) {
+		obs_source_t *source = scenes.sources.array[i];
+		const char *sceneName = obs_source_get_name(source);
+		if (!sceneName)
+			continue;
+
+		std::string candidate = sceneName;
+		std::string candLower = candidate;
+		std::transform(candLower.begin(), candLower.end(),
+			       candLower.begin(), ::tolower);
+
+		if (candLower == input) {
+			bestScene = candidate;
+			bestScore = 1.0;
+			break;
+		}
+
+		double score;
+		if (candLower.find(input) == 0)
+			score = 0.8 + 0.2 * (double)input.size() /
+						(double)candLower.size();
+		else if (candLower.find(input) != std::string::npos)
+			score = 0.6 + 0.2 * (double)input.size() /
+						(double)candLower.size();
+		else
+			score = (std::min)(
+				damerauLevenshteinSimilarity(input, candLower),
+				0.59);
+
+		if (score > bestScore) {
+			bestScore = score;
+			bestScene = candidate;
+		}
+	}
+
+	obs_frontend_source_list_free(&scenes);
+
+	if (bestScore >= 0.3 && !bestScene.empty()) {
+		switchToScene(bestScene);
+		blog(LOG_INFO,
+		     "[BitrateSceneSwitch] Matched \"%s\" -> \"%s\" (%.2f)",
+		     name.c_str(), bestScene.c_str(), bestScore);
+		return true;
+	}
+
+	blog(LOG_WARNING,
+	     "[BitrateSceneSwitch] No scene matched \"%s\" (best: %.2f)",
+	     name.c_str(), bestScore);
+	return false;
 }
 
 void Switcher::connectChat()

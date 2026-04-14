@@ -187,4 +187,132 @@ bool WsClient::isConnected() const
 
 } // namespace BitrateSwitch
 
-#endif // _WIN32
+#else // !_WIN32 — POSIX + libcurl WebSocket
+
+#include <curl/websockets.h>
+#include <poll.h>
+
+namespace BitrateSwitch {
+
+WsClient::WsClient() = default;
+
+WsClient::~WsClient()
+{
+	disconnect();
+}
+
+bool WsClient::connect(const std::string &url)
+{
+	disconnect();
+
+	curl_ = curl_easy_init();
+	if (!curl_)
+		return false;
+
+	curl_easy_setopt(curl_, CURLOPT_URL, url.c_str());
+	curl_easy_setopt(curl_, CURLOPT_CONNECT_ONLY, 2L);
+
+	CURLcode res = curl_easy_perform(curl_);
+	if (res != CURLE_OK) {
+		blog(LOG_WARNING,
+		     "[BitrateSceneSwitch] WS connect failed: %s",
+		     curl_easy_strerror(res));
+		curl_easy_cleanup(curl_);
+		curl_ = nullptr;
+		return false;
+	}
+
+	connected_ = true;
+	return true;
+}
+
+void WsClient::disconnect()
+{
+	connected_ = false;
+	if (curl_) {
+		size_t sent = 0;
+		curl_ws_send(curl_, "", 0, &sent, 0, CURLWS_CLOSE);
+		curl_easy_cleanup(curl_);
+		curl_ = nullptr;
+	}
+}
+
+bool WsClient::send(const std::string &text)
+{
+	if (!curl_ || !connected_)
+		return false;
+
+	size_t sent = 0;
+	CURLcode res = curl_ws_send(curl_, text.data(), text.size(),
+				    &sent, 0, CURLWS_TEXT);
+	if (res != CURLE_OK) {
+		connected_ = false;
+		return false;
+	}
+	return true;
+}
+
+WsClient::RecvResult WsClient::recv(std::string &out)
+{
+	out.clear();
+	if (!curl_ || !connected_)
+		return RecvResult::Error;
+
+	curl_socket_t sockfd;
+	CURLcode res = curl_easy_getinfo(curl_, CURLINFO_ACTIVESOCKET,
+					 &sockfd);
+	if (res != CURLE_OK || sockfd == CURL_SOCKET_BAD) {
+		connected_ = false;
+		return RecvResult::Error;
+	}
+
+	struct pollfd pfd;
+	pfd.fd = sockfd;
+	pfd.events = POLLIN;
+	int pr = poll(&pfd, 1, 1000);
+
+	if (pr == 0)
+		return RecvResult::Timeout;
+	if (pr < 0) {
+		connected_ = false;
+		return RecvResult::Error;
+	}
+
+	char buf[8192];
+	for (;;) {
+		size_t rlen = 0;
+		const struct curl_ws_frame *meta = nullptr;
+		res = curl_ws_recv(curl_, buf, sizeof(buf), &rlen, &meta);
+
+		if (res == CURLE_AGAIN)
+			break;
+		if (res != CURLE_OK) {
+			connected_ = false;
+			return RecvResult::Error;
+		}
+
+		if (meta && (meta->flags & CURLWS_CLOSE)) {
+			connected_ = false;
+			return RecvResult::Closed;
+		}
+
+		out.append(buf, rlen);
+
+		if (!meta || meta->bytesleft == 0)
+			break;
+	}
+
+	if (out.empty())
+		return RecvResult::Timeout;
+
+	return RecvResult::Message;
+}
+
+bool WsClient::isConnected() const
+{
+	return connected_;
+}
+
+} // namespace BitrateSwitch
+
+#endif

@@ -3,6 +3,8 @@
 #ifdef _WIN32
 #include <windows.h>
 #include <winhttp.h>
+#else
+#include <curl/curl.h>
 #endif
 
 #include <atomic>
@@ -28,6 +30,8 @@ private:
 	HINTERNET session_ = nullptr;
 	HINTERNET connect_ = nullptr;
 	HINTERNET websocket_ = nullptr;
+#else
+	CURL *curl_ = nullptr;
 #endif
 	std::atomic<bool> connected_{false};
 };

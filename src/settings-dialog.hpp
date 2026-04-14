@@ -8,7 +8,8 @@
 #include <QTableWidget>
 #include <QPushButton>
 #include <QLabel>
-#include <QTabWidget>
+#include <QTreeWidget>
+#include <QStackedWidget>
 
 #include "config.hpp"
 #include "update-checker.hpp"
@@ -16,6 +17,18 @@
 namespace BitrateSwitch {
 
 class Switcher;
+
+struct ServerPage {
+    QWidget *widget = nullptr;
+    QCheckBox *enabledCheck = nullptr;
+    QComboBox *typeCombo = nullptr;
+    QLineEdit *nameEdit = nullptr;
+    QLineEdit *urlEdit = nullptr;
+    QLineEdit *keyEdit = nullptr;
+    QSpinBox *prioritySpin = nullptr;
+    QTreeWidgetItem *treeItem = nullptr;
+    int stackIndex = -1;
+};
 
 class SettingsDialog : public QDialog {
     Q_OBJECT
@@ -25,78 +38,77 @@ public:
     ~SettingsDialog();
 
 private slots:
-    void onAddServer();
-    void onRemoveServer();
     void onSave();
     void onApply();
     void refreshStatus();
 
 private:
     void setupUI();
-    void setupGeneralTab(QWidget *tab);
-    void setupTriggersTab(QWidget *tab);
-    void setupScenesTab(QWidget *tab);
-    void setupServersTab(QWidget *tab);
-    void setupAdvancedTab(QWidget *tab);
-    void setupChatTab(QWidget *tab);
-    void setupMessagesTab(QWidget *tab);
-    void setupCommandsTab(QWidget *tab);
+    QWidget *createGeneralPage();
+    QWidget *createTriggersPage();
+    QWidget *createScenesPage();
+    QWidget *createChatPage();
+    QWidget *createCommandsPage();
+    QWidget *createMessagesPage();
+    QWidget *createAdvancedPage();
+    QWidget *createServerPage(const StreamServerConfig *initial = nullptr);
     void loadSettings();
     void saveSettings();
     void populateSceneComboBox(QComboBox *combo, bool allowEmpty = false);
     void updateStreamingFieldStates();
     void updateChatPlatformUi();
-    static QWidget *wrapInScrollArea(QWidget *content, QWidget *parent);
+    void addServerEntry(const StreamServerConfig *initial = nullptr);
+    void removeSelectedServer();
+    void onNavItemClicked(QTreeWidgetItem *item, int column);
+    static QWidget *wrapInScrollArea(QWidget *content);
+    void populateServerTypeCombo(QComboBox *combo);
 
     Config *config_;
     Switcher *switcher_;
 
-    QTabWidget *tabWidget_;
+    // Navigation
+    QTreeWidget *navTree_;
+    QStackedWidget *contentStack_;
+    QTreeWidgetItem *serversParent_;
 
-    // General settings
+    // Server pages
+    std::vector<ServerPage> serverPages_;
+
+    // General
     QCheckBox *enabledCheckbox_;
     QCheckBox *onlyWhenStreamingCheckbox_;
     QCheckBox *instantRecoverCheckbox_;
     QCheckBox *autoNotifyCheckbox_;
     QSpinBox *retryAttemptsSpinBox_;
 
-    // Trigger settings
+    // Triggers
     QSpinBox *lowBitrateSpinBox_;
     QSpinBox *rttThresholdSpinBox_;
     QSpinBox *offlineBitrateSpinBox_;
     QSpinBox *rttOfflineSpinBox_;
 
-    // Main scene settings
+    // Scenes
     QComboBox *normalSceneCombo_;
     QComboBox *lowSceneCombo_;
     QComboBox *offlineSceneCombo_;
-
-    // Optional scenes
     QComboBox *startingSceneCombo_;
     QComboBox *endingSceneCombo_;
     QComboBox *privacySceneCombo_;
     QComboBox *refreshSceneCombo_;
 
-    // Optional options
+    // Advanced
     QSpinBox *offlineTimeoutSpinBox_;
     QCheckBox *recordWhileStreamingCheckbox_;
     QCheckBox *switchToStartingCheckbox_;
     QCheckBox *switchFromStartingCheckbox_;
     QSpinBox *ristStaleFrameFixSpinBox_;
 
-    // Server list
-    QTableWidget *serverTable_;
-    QPushButton *addServerBtn_;
-    QPushButton *removeServerBtn_;
-
     // Status
     QLabel *statusLabel_;
     QLabel *bitrateLabel_;
-
-    // Timer for status updates
     QTimer *statusTimer_;
 
-    // Chat settings
+    // Chat
     QCheckBox *chatEnabledCheckbox_;
     QComboBox *chatPlatformCombo_;
     QLineEdit *chatChannelEdit_;
@@ -104,14 +116,16 @@ private:
     QLineEdit *chatOauthEdit_;
     QLineEdit *chatAdminsEdit_;
     QCheckBox *chatAnnounceCheckbox_;
-    QWidget *twitchConnWidget_;
-    QWidget *kickConnWidget_;
+    QLabel *twitchBotLabel_;
+    QLabel *twitchOauthLabel_;
+    QLabel *kickChannelLabel_;
+    QLabel *kickChatroomLabel_;
     QLineEdit *kickChannelIdEdit_;
     QLineEdit *kickChatroomIdEdit_;
     QCheckBox *chatAutoStopRaidCheckbox_;
     QCheckBox *chatAnnounceRaidStopCheckbox_;
 
-    // Message templates
+    // Messages
     QLineEdit *msgSwitchedLiveEdit_;
     QLineEdit *msgSwitchedLowEdit_;
     QLineEdit *msgSwitchedOfflineEdit_;
@@ -124,7 +138,7 @@ private:
     QLineEdit *msgRaidStopEdit_;
     QLineEdit *msgSceneSwitchedEdit_;
 
-    // Default command overrides
+    // Commands
     QLineEdit *cmdLiveEdit_;
     QLineEdit *cmdLowEdit_;
     QLineEdit *cmdBrbEdit_;
@@ -137,11 +151,11 @@ private:
     QLineEdit *cmdStartEdit_;
     QLineEdit *cmdStopEdit_;
 
-    // Custom commands table
+    // Custom commands
     QTableWidget *customCmdTable_;
     QPushButton *addCustomCmdBtn_;
     QPushButton *removeCustomCmdBtn_;
-    
+
     // Update notification
     QLabel *updateLabel_;
     UpdateChecker updateChecker_;

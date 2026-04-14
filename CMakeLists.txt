@@ -94,6 +94,7 @@ elseif(APPLE)
         MACOSX_BUNDLE_BUNDLE_NAME "${PROJECT_NAME}"
         MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}"
     )
+    target_link_options(${PROJECT_NAME} PRIVATE -Wl,-dead_strip_dylibs)
 else()
     set_target_properties(${PROJECT_NAME} PROPERTIES
         PREFIX ""
@@ -112,6 +113,7 @@ if(WIN32)
 elseif(APPLE)
     install(TARGETS ${PROJECT_NAME}
         BUNDLE DESTINATION "."
+        LIBRARY DESTINATION "."
     )
 else()
     install(TARGETS ${PROJECT_NAME}

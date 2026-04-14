@@ -10,9 +10,139 @@
 #include <QDialogButtonBox>
 #include <QMessageBox>
 #include <QTimer>
+#include <QSplitter>
 #include <obs-frontend-api.h>
 
 namespace BitrateSwitch {
+
+static const char *kStyleSheet =
+    "QDialog {"
+    "  background-color: #1e1e2e;"
+    "  color: #cdd6f4;"
+    "}"
+    "QTreeWidget {"
+    "  background-color: #181825;"
+    "  color: #cdd6f4;"
+    "  border: 1px solid #313244;"
+    "  border-radius: 8px;"
+    "  outline: none;"
+    "  font-size: 13px;"
+    "}"
+    "QTreeWidget::item {"
+    "  padding: 9px 14px;"
+    "  border-radius: 4px;"
+    "  margin: 1px 4px;"
+    "}"
+    "QTreeWidget::item:selected {"
+    "  background-color: #313244;"
+    "  color: #89b4fa;"
+    "}"
+    "QTreeWidget::item:hover:!selected {"
+    "  background-color: #1e1e2e;"
+    "}"
+    "QTreeWidget::branch {"
+    "  background-color: transparent;"
+    "}"
+    "QGroupBox {"
+    "  background-color: #181825;"
+    "  border: 1px solid #313244;"
+    "  border-radius: 8px;"
+    "  margin-top: 16px;"
+    "  padding: 20px 16px 16px 16px;"
+    "  font-weight: bold;"
+    "  color: #cdd6f4;"
+    "}"
+    "QGroupBox::title {"
+    "  subcontrol-origin: margin;"
+    "  left: 12px;"
+    "  padding: 0 6px;"
+    "  color: #89b4fa;"
+    "  font-size: 13px;"
+    "}"
+    "QLabel {"
+    "  color: #bac2de;"
+    "}"
+    "QCheckBox {"
+    "  color: #cdd6f4;"
+    "  spacing: 8px;"
+    "}"
+    "QCheckBox::indicator {"
+    "  width: 18px;"
+    "  height: 18px;"
+    "  border-radius: 4px;"
+    "  border: 2px solid #585b70;"
+    "  background-color: #313244;"
+    "}"
+    "QCheckBox::indicator:checked {"
+    "  background-color: #a6e3a1;"
+    "  border-color: #a6e3a1;"
+    "}"
+    "QSpinBox, QComboBox, QLineEdit {"
+    "  background-color: #313244;"
+    "  color: #cdd6f4;"
+    "  border: 1px solid #45475a;"
+    "  border-radius: 6px;"
+    "  padding: 6px 10px;"
+    "  min-height: 28px;"
+    "  min-width: 220px;"
+    "  selection-background-color: #89b4fa;"
+    "}"
+    "QSpinBox:focus, QComboBox:focus, QLineEdit:focus {"
+    "  border-color: #89b4fa;"
+    "}"
+    "QComboBox::drop-down { border: none; padding-right: 8px; }"
+    "QComboBox QAbstractItemView {"
+    "  background-color: #313244;"
+    "  color: #cdd6f4;"
+    "  selection-background-color: #45475a;"
+    "  border: 1px solid #45475a;"
+    "}"
+    "QPushButton {"
+    "  background-color: #45475a;"
+    "  color: #cdd6f4;"
+    "  border: 1px solid #585b70;"
+    "  border-radius: 6px;"
+    "  padding: 8px 20px;"
+    "  font-weight: bold;"
+    "  min-height: 20px;"
+    "}"
+    "QPushButton:hover {"
+    "  background-color: #585b70;"
+    "  border-color: #89b4fa;"
+    "}"
+    "QPushButton:pressed { background-color: #313244; }"
+    "QTableWidget {"
+    "  background-color: #181825;"
+    "  color: #cdd6f4;"
+    "  gridline-color: #313244;"
+    "  border: 1px solid #313244;"
+    "  border-radius: 6px;"
+    "  selection-background-color: #45475a;"
+    "}"
+    "QTableWidget::item { padding: 4px; }"
+    "QHeaderView::section {"
+    "  background-color: #313244;"
+    "  color: #89b4fa;"
+    "  border: 1px solid #45475a;"
+    "  padding: 6px;"
+    "  font-weight: bold;"
+    "}"
+    "QScrollBar:vertical {"
+    "  background-color: #1e1e2e;"
+    "  width: 10px;"
+    "  border-radius: 5px;"
+    "}"
+    "QScrollBar::handle:vertical {"
+    "  background-color: #45475a;"
+    "  border-radius: 5px;"
+    "  min-height: 20px;"
+    "}"
+    "QStackedWidget { background-color: transparent; }"
+    "QSplitter::handle { background-color: #313244; width: 1px; }";
+
+// ────────────────────────────────────────────────────────────
+// Construction
+// ────────────────────────────────────────────────────────────
 
 SettingsDialog::SettingsDialog(Config *config, Switcher *switcher, QWidget *parent)
     : QDialog(parent)
@@ -20,137 +150,10 @@ SettingsDialog::SettingsDialog(Config *config, Switcher *switcher, QWidget *pare
     , switcher_(switcher)
 {
     setWindowTitle("Bitrate Scene Switch Settings");
-    setMinimumSize(750, 600);
-    
-    // Modern dark stylesheet with color accents
-    setStyleSheet(
-        "QDialog {"
-        "  background-color: #1e1e2e;"
-        "  color: #cdd6f4;"
-        "}"
-        "QTabWidget::pane {"
-        "  border: 1px solid #313244;"
-        "  background-color: #1e1e2e;"
-        "  border-radius: 6px;"
-        "}"
-        "QTabBar::tab {"
-        "  background-color: #313244;"
-        "  color: #a6adc8;"
-        "  padding: 8px 18px;"
-        "  margin-right: 2px;"
-        "  border-top-left-radius: 6px;"
-        "  border-top-right-radius: 6px;"
-        "  font-weight: bold;"
-        "}"
-        "QTabBar::tab:selected {"
-        "  background-color: #45475a;"
-        "  color: #89b4fa;"
-        "}"
-        "QTabBar::tab:hover {"
-        "  background-color: #45475a;"
-        "}"
-        "QGroupBox {"
-        "  background-color: #181825;"
-        "  border: 1px solid #313244;"
-        "  border-radius: 8px;"
-        "  margin-top: 14px;"
-        "  padding-top: 14px;"
-        "  font-weight: bold;"
-        "  color: #cdd6f4;"
-        "}"
-        "QGroupBox::title {"
-        "  subcontrol-origin: margin;"
-        "  left: 12px;"
-        "  padding: 0 6px;"
-        "  color: #89b4fa;"
-        "  font-size: 13px;"
-        "}"
-        "QLabel {"
-        "  color: #bac2de;"
-        "}"
-        "QCheckBox {"
-        "  color: #cdd6f4;"
-        "  spacing: 8px;"
-        "}"
-        "QCheckBox::indicator {"
-        "  width: 18px;"
-        "  height: 18px;"
-        "  border-radius: 4px;"
-        "  border: 2px solid #585b70;"
-        "  background-color: #313244;"
-        "}"
-        "QCheckBox::indicator:checked {"
-        "  background-color: #a6e3a1;"
-        "  border-color: #a6e3a1;"
-        "}"
-        "QSpinBox, QComboBox, QLineEdit {"
-        "  background-color: #313244;"
-        "  color: #cdd6f4;"
-        "  border: 1px solid #45475a;"
-        "  border-radius: 6px;"
-        "  padding: 6px 10px;"
-        "  min-height: 24px;"
-        "  selection-background-color: #89b4fa;"
-        "}"
-        "QSpinBox:focus, QComboBox:focus, QLineEdit:focus {"
-        "  border-color: #89b4fa;"
-        "}"
-        "QComboBox::drop-down {"
-        "  border: none;"
-        "  padding-right: 8px;"
-        "}"
-        "QComboBox QAbstractItemView {"
-        "  background-color: #313244;"
-        "  color: #cdd6f4;"
-        "  selection-background-color: #45475a;"
-        "  border: 1px solid #45475a;"
-        "}"
-        "QPushButton {"
-        "  background-color: #45475a;"
-        "  color: #cdd6f4;"
-        "  border: 1px solid #585b70;"
-        "  border-radius: 6px;"
-        "  padding: 8px 20px;"
-        "  font-weight: bold;"
-        "  min-height: 20px;"
-        "}"
-        "QPushButton:hover {"
-        "  background-color: #585b70;"
-        "  border-color: #89b4fa;"
-        "}"
-        "QPushButton:pressed {"
-        "  background-color: #313244;"
-        "}"
-        "QTableWidget {"
-        "  background-color: #181825;"
-        "  color: #cdd6f4;"
-        "  gridline-color: #313244;"
-        "  border: 1px solid #313244;"
-        "  border-radius: 6px;"
-        "  selection-background-color: #45475a;"
-        "}"
-        "QTableWidget::item {"
-        "  padding: 4px;"
-        "}"
-        "QHeaderView::section {"
-        "  background-color: #313244;"
-        "  color: #89b4fa;"
-        "  border: 1px solid #45475a;"
-        "  padding: 6px;"
-        "  font-weight: bold;"
-        "}"
-        "QScrollBar:vertical {"
-        "  background-color: #1e1e2e;"
-        "  width: 10px;"
-        "  border-radius: 5px;"
-        "}"
-        "QScrollBar::handle:vertical {"
-        "  background-color: #45475a;"
-        "  border-radius: 5px;"
-        "  min-height: 20px;"
-        "}"
-    );
-    
+    setMinimumSize(880, 640);
+    resize(920, 680);
+    setStyleSheet(kStyleSheet);
+
     setupUI();
     loadSettings();
 
@@ -165,16 +168,63 @@ SettingsDialog::~SettingsDialog()
     statusTimer_->stop();
 }
 
+// ────────────────────────────────────────────────────────────
+// Helpers
+// ────────────────────────────────────────────────────────────
+
+QWidget *SettingsDialog::wrapInScrollArea(QWidget *content)
+{
+    QScrollArea *scroll = new QScrollArea();
+    scroll->setWidgetResizable(true);
+    scroll->setFrameShape(QFrame::NoFrame);
+    scroll->setStyleSheet("QScrollArea { background-color: transparent; border: none; }");
+    scroll->setWidget(content);
+    return scroll;
+}
+
+void SettingsDialog::populateServerTypeCombo(QComboBox *combo)
+{
+    combo->addItem("IRLHosting",        static_cast<int>(ServerType::IrlHosting));
+    combo->addItem("BELABOX",           static_cast<int>(ServerType::Belabox));
+    combo->addItem("NGINX",             static_cast<int>(ServerType::Nginx));
+    combo->addItem("SRT Live Server",   static_cast<int>(ServerType::SrtLiveServer));
+    combo->addItem("MediaMTX",          static_cast<int>(ServerType::Mediamtx));
+    combo->addItem("Node Media Server", static_cast<int>(ServerType::NodeMediaServer));
+    combo->addItem("Nimble",            static_cast<int>(ServerType::Nimble));
+    combo->addItem("RIST",              static_cast<int>(ServerType::Rist));
+    combo->addItem("OpenIRL",           static_cast<int>(ServerType::OpenIRL));
+    combo->addItem("Xiu",              static_cast<int>(ServerType::Xiu));
+}
+
+void SettingsDialog::populateSceneComboBox(QComboBox *combo, bool allowEmpty)
+{
+    combo->clear();
+    if (allowEmpty)
+        combo->addItem("(None)", "");
+
+    obs_frontend_source_list scenes = {};
+    obs_frontend_get_scenes(&scenes);
+    for (size_t i = 0; i < scenes.sources.num; i++) {
+        const char *name = obs_source_get_name(scenes.sources.array[i]);
+        if (name)
+            combo->addItem(QString::fromUtf8(name), QString::fromUtf8(name));
+    }
+    obs_frontend_source_list_free(&scenes);
+}
+
+// ────────────────────────────────────────────────────────────
+// Main layout: sidebar + content
+// ────────────────────────────────────────────────────────────
+
 void SettingsDialog::setupUI()
 {
-    QVBoxLayout *mainLayout = new QVBoxLayout(this);
+    QVBoxLayout *root = new QVBoxLayout(this);
 
-    // Status bar at top
+    // Status bar
     QGroupBox *statusGroup = new QGroupBox("Status", this);
     statusGroup->setStyleSheet(
         "QGroupBox { background-color: #11111b; border: 1px solid #313244; }"
-        "QGroupBox::title { color: #f9e2af; }"
-    );
+        "QGroupBox::title { color: #f9e2af; }");
     QHBoxLayout *statusLayout = new QHBoxLayout(statusGroup);
     statusLabel_ = new QLabel("Status: Unknown", this);
     statusLabel_->setStyleSheet("color: #a6e3a1; font-weight: bold; font-size: 13px;");
@@ -183,39 +233,87 @@ void SettingsDialog::setupUI()
     statusLayout->addWidget(statusLabel_);
     statusLayout->addWidget(bitrateLabel_);
     statusLayout->addStretch();
-    mainLayout->addWidget(statusGroup);
+    root->addWidget(statusGroup);
 
-    // Tab widget for organized settings
-    tabWidget_ = new QTabWidget(this);
-    
-    QWidget *generalTab = new QWidget();
-    QWidget *triggersTab = new QWidget();
-    QWidget *scenesTab = new QWidget();
-    QWidget *serversTab = new QWidget();
-    QWidget *advancedTab = new QWidget();
-    QWidget *chatTab = new QWidget();
-    QWidget *commandsTab = new QWidget();
-    QWidget *messagesTab = new QWidget();
+    // Splitter: sidebar | content
+    QSplitter *splitter = new QSplitter(Qt::Horizontal, this);
 
-    setupGeneralTab(generalTab);
-    setupTriggersTab(triggersTab);
-    setupScenesTab(scenesTab);
-    setupServersTab(serversTab);
-    setupAdvancedTab(advancedTab);
-    setupChatTab(chatTab);
-    setupCommandsTab(commandsTab);
-    setupMessagesTab(messagesTab);
+    // --- sidebar ---
+    QWidget *sidebarWidget = new QWidget();
+    QVBoxLayout *sidebarLayout = new QVBoxLayout(sidebarWidget);
+    sidebarLayout->setContentsMargins(0, 0, 0, 0);
+    sidebarLayout->setSpacing(6);
 
-    tabWidget_->addTab(generalTab, "General");
-    tabWidget_->addTab(triggersTab, "Triggers");
-    tabWidget_->addTab(scenesTab, "Scenes");
-    tabWidget_->addTab(serversTab, "Servers");
-    tabWidget_->addTab(chatTab, "Chat");
-    tabWidget_->addTab(commandsTab, "Commands");
-    tabWidget_->addTab(messagesTab, "Messages");
-    tabWidget_->addTab(advancedTab, "Advanced");
-    
-    mainLayout->addWidget(tabWidget_);
+    navTree_ = new QTreeWidget();
+    navTree_->setHeaderHidden(true);
+    navTree_->setRootIsDecorated(true);
+    navTree_->setIndentation(16);
+    navTree_->setMinimumWidth(180);
+    navTree_->setMaximumWidth(230);
+    navTree_->setFocusPolicy(Qt::NoFocus);
+    navTree_->setAnimated(true);
+
+    auto addNavItem = [&](const QString &label) -> QTreeWidgetItem * {
+        auto *item = new QTreeWidgetItem(navTree_, {label});
+        item->setFlags(item->flags() & ~Qt::ItemIsEditable);
+        return item;
+    };
+
+    addNavItem("General");
+    addNavItem("Triggers");
+    addNavItem("Scenes");
+
+    serversParent_ = addNavItem("Servers");
+    serversParent_->setExpanded(true);
+
+    addNavItem("Chat");
+    addNavItem("Commands");
+    addNavItem("Messages");
+    addNavItem("Advanced");
+
+    sidebarLayout->addWidget(navTree_);
+
+    // server add/remove buttons
+    QHBoxLayout *srvBtnRow = new QHBoxLayout();
+    QPushButton *addSrvBtn = new QPushButton("+ Add");
+    addSrvBtn->setStyleSheet(
+        "QPushButton { background-color: #a6e3a1; color: #1e1e2e; border: none; padding: 6px 12px; font-size: 12px; }"
+        "QPushButton:hover { background-color: #94e2d5; }");
+    QPushButton *rmSrvBtn = new QPushButton("- Remove");
+    rmSrvBtn->setStyleSheet(
+        "QPushButton { background-color: #f38ba8; color: #1e1e2e; border: none; padding: 6px 12px; font-size: 12px; }"
+        "QPushButton:hover { background-color: #eba0ac; }");
+    srvBtnRow->addWidget(addSrvBtn);
+    srvBtnRow->addWidget(rmSrvBtn);
+    srvBtnRow->addStretch();
+    sidebarLayout->addLayout(srvBtnRow);
+
+    connect(addSrvBtn, &QPushButton::clicked, this, [this]() { addServerEntry(); });
+    connect(rmSrvBtn, &QPushButton::clicked, this, &SettingsDialog::removeSelectedServer);
+
+    splitter->addWidget(sidebarWidget);
+
+    // --- content ---
+    contentStack_ = new QStackedWidget();
+    contentStack_->addWidget(wrapInScrollArea(createGeneralPage()));   // 0
+    contentStack_->addWidget(wrapInScrollArea(createTriggersPage()));  // 1
+    contentStack_->addWidget(wrapInScrollArea(createScenesPage()));    // 2
+    // index 3 is reserved — "Servers" parent click shows first server or empty
+    QLabel *emptyServers = new QLabel("Add a server using the + button below the sidebar.");
+    emptyServers->setAlignment(Qt::AlignCenter);
+    emptyServers->setStyleSheet("color: #585b70; font-size: 14px;");
+    contentStack_->addWidget(emptyServers);                           // 3
+    contentStack_->addWidget(wrapInScrollArea(createChatPage()));      // 4
+    contentStack_->addWidget(wrapInScrollArea(createCommandsPage()));  // 5
+    contentStack_->addWidget(wrapInScrollArea(createMessagesPage()));  // 6
+    contentStack_->addWidget(wrapInScrollArea(createAdvancedPage()));  // 7
+
+    splitter->addWidget(contentStack_);
+    splitter->setStretchFactor(0, 0);
+    splitter->setStretchFactor(1, 1);
+    root->addWidget(splitter, 1);
+
+    connect(navTree_, &QTreeWidget::itemClicked, this, &SettingsDialog::onNavItemClicked);
 
     // Dialog buttons
     QHBoxLayout *btnLayout = new QHBoxLayout();
@@ -225,53 +323,49 @@ void SettingsDialog::setupUI()
     applyBtn->setStyleSheet(
         "QPushButton { background-color: #89b4fa; color: #1e1e2e; border: none; padding: 10px 30px; font-size: 14px; }"
         "QPushButton:hover { background-color: #74c7ec; }"
-        "QPushButton:pressed { background-color: #89dceb; }"
-    );
+        "QPushButton:pressed { background-color: #89dceb; }");
     connect(applyBtn, &QPushButton::clicked, this, &SettingsDialog::onApply);
 
     QPushButton *saveBtn = new QPushButton("Save", this);
     saveBtn->setStyleSheet(
         "QPushButton { background-color: #a6e3a1; color: #1e1e2e; border: none; padding: 10px 30px; font-size: 14px; }"
         "QPushButton:hover { background-color: #94e2d5; }"
-        "QPushButton:pressed { background-color: #74c7ec; }"
-    );
+        "QPushButton:pressed { background-color: #74c7ec; }");
     connect(saveBtn, &QPushButton::clicked, this, &SettingsDialog::onSave);
 
     QPushButton *cancelBtn = new QPushButton("Cancel", this);
     cancelBtn->setStyleSheet(
         "QPushButton { background-color: #f38ba8; color: #1e1e2e; border: none; padding: 10px 30px; font-size: 14px; }"
         "QPushButton:hover { background-color: #eba0ac; }"
-        "QPushButton:pressed { background-color: #f2cdcd; }"
-    );
+        "QPushButton:pressed { background-color: #f2cdcd; }");
     connect(cancelBtn, &QPushButton::clicked, this, &QDialog::reject);
 
     btnLayout->addWidget(applyBtn);
     btnLayout->addWidget(saveBtn);
     btnLayout->addWidget(cancelBtn);
-    mainLayout->addLayout(btnLayout);
+    root->addLayout(btnLayout);
 
-    // Update notification (hidden by default)
+    // Update notification
     updateLabel_ = new QLabel(this);
     updateLabel_->setStyleSheet(
         "QLabel { background-color: #f9e2af; color: #1e1e2e; padding: 10px; border-radius: 6px; font-weight: bold; }");
     updateLabel_->setOpenExternalLinks(true);
     updateLabel_->setAlignment(Qt::AlignCenter);
     updateLabel_->setVisible(false);
-    mainLayout->addWidget(updateLabel_);
+    root->addWidget(updateLabel_);
 
-    // Branding footer
-    QLabel *brandingLabel = new QLabel(this);
-    brandingLabel->setText(
+    // Branding
+    QLabel *branding = new QLabel(this);
+    branding->setText(
         QString("<div style='text-align: center; color: #585b70;'>"
         "Bitrate Scene Switch v%1 | Powered by "
         "<a href='https://irlhosting.com' style='color: #cba6f7;'>IRLHosting.com</a>"
         "</div>").arg(QString::fromStdString(UpdateChecker::getCurrentVersion())));
-    brandingLabel->setOpenExternalLinks(true);
-    brandingLabel->setAlignment(Qt::AlignCenter);
-    mainLayout->addWidget(brandingLabel);
-    
-    // Check for updates
-    updateChecker_.checkForUpdates([this](const UpdateInfo& info) {
+    branding->setOpenExternalLinks(true);
+    branding->setAlignment(Qt::AlignCenter);
+    root->addWidget(branding);
+
+    updateChecker_.checkForUpdates([this](const UpdateInfo &info) {
         if (info.hasUpdate) {
             QMetaObject::invokeMethod(this, [this, info]() {
                 updateLabel_->setText(
@@ -283,36 +377,141 @@ void SettingsDialog::setupUI()
             }, Qt::QueuedConnection);
         }
     });
+
+    navTree_->setCurrentItem(navTree_->topLevelItem(0));
+    contentStack_->setCurrentIndex(0);
 }
 
-QWidget *SettingsDialog::wrapInScrollArea(QWidget *content, QWidget *parent)
+// ────────────────────────────────────────────────────────────
+// Navigation
+// ────────────────────────────────────────────────────────────
+
+void SettingsDialog::onNavItemClicked(QTreeWidgetItem *item, int)
 {
-    QScrollArea *scroll = new QScrollArea(parent);
-    scroll->setWidgetResizable(true);
-    scroll->setFrameShape(QFrame::NoFrame);
-    scroll->setStyleSheet("QScrollArea { background-color: transparent; border: none; }");
-    scroll->setWidget(content);
-    
-    QVBoxLayout *outerLayout = new QVBoxLayout(parent);
-    outerLayout->setContentsMargins(0, 0, 0, 0);
-    outerLayout->addWidget(scroll);
-    return content;
+    if (!item)
+        return;
+
+    // Check if it's a server child item
+    if (item->parent() == serversParent_) {
+        for (const auto &sp : serverPages_) {
+            if (sp.treeItem == item) {
+                contentStack_->setCurrentIndex(sp.stackIndex);
+                return;
+            }
+        }
+        return;
+    }
+
+    // Top-level nav items map to fixed indices:
+    // General=0, Triggers=1, Scenes=2, Servers=3, Chat=4, Commands=5, Messages=6, Advanced=7
+    int tlIndex = navTree_->indexOfTopLevelItem(item);
+    if (tlIndex < 0)
+        return;
+
+    if (item == serversParent_) {
+        if (!serverPages_.empty()) {
+            contentStack_->setCurrentIndex(serverPages_.front().stackIndex);
+            navTree_->setCurrentItem(serverPages_.front().treeItem);
+        } else {
+            contentStack_->setCurrentIndex(3);
+        }
+        return;
+    }
+
+    // Map top-level index to stack index, skipping servers parent
+    // 0=General, 1=Triggers, 2=Scenes, 3=Servers(parent), 4=Chat, 5=Commands, 6=Messages, 7=Advanced
+    static const int kPageMap[] = {0, 1, 2, 3, 4, 5, 6, 7};
+    if (tlIndex >= 0 && tlIndex < 8)
+        contentStack_->setCurrentIndex(kPageMap[tlIndex]);
 }
 
-void SettingsDialog::setupGeneralTab(QWidget *tab)
+// ────────────────────────────────────────────────────────────
+// Server management
+// ────────────────────────────────────────────────────────────
+
+void SettingsDialog::addServerEntry(const StreamServerConfig *initial)
 {
-    QWidget *content = new QWidget();
-    QVBoxLayout *layout = new QVBoxLayout(content);
-    
-    QGroupBox *group = new QGroupBox("Switcher Settings", content);
+    QWidget *page = createServerPage(initial);
+    int stackIdx = contentStack_->addWidget(wrapInScrollArea(page));
+
+    ServerPage sp;
+    sp.widget = page;
+    sp.stackIndex = stackIdx;
+
+    // grab widgets from the page (they are the only children of their type in the form)
+    sp.enabledCheck  = page->findChild<QCheckBox *>("srv_enabled");
+    sp.typeCombo     = page->findChild<QComboBox *>("srv_type");
+    sp.nameEdit      = page->findChild<QLineEdit *>("srv_name");
+    sp.urlEdit       = page->findChild<QLineEdit *>("srv_url");
+    sp.keyEdit       = page->findChild<QLineEdit *>("srv_key");
+    sp.prioritySpin  = page->findChild<QSpinBox *>("srv_priority");
+
+    QString label = initial ? QString::fromStdString(initial->name) : "New Server";
+    sp.treeItem = new QTreeWidgetItem(serversParent_, {label});
+    sp.treeItem->setFlags(sp.treeItem->flags() & ~Qt::ItemIsEditable);
+    serversParent_->setExpanded(true);
+
+    // keep sidebar label in sync with the name field
+    connect(sp.nameEdit, &QLineEdit::textChanged, this, [item = sp.treeItem](const QString &text) {
+        item->setText(0, text.isEmpty() ? "Unnamed" : text);
+    });
+
+    serverPages_.push_back(sp);
+
+    contentStack_->setCurrentIndex(stackIdx);
+    navTree_->setCurrentItem(sp.treeItem);
+}
+
+void SettingsDialog::removeSelectedServer()
+{
+    QTreeWidgetItem *cur = navTree_->currentItem();
+    if (!cur || cur->parent() != serversParent_)
+        return;
+
+    for (auto it = serverPages_.begin(); it != serverPages_.end(); ++it) {
+        if (it->treeItem == cur) {
+            contentStack_->removeWidget(contentStack_->widget(it->stackIndex));
+            serversParent_->removeChild(cur);
+            delete cur;
+
+            // re-index everything after removal
+            serverPages_.erase(it);
+            for (size_t i = 0; i < serverPages_.size(); i++)
+                serverPages_[i].stackIndex = contentStack_->indexOf(
+                    contentStack_->widget(contentStack_->indexOf(
+                        serverPages_[i].widget->parentWidget())));
+
+            if (!serverPages_.empty()) {
+                contentStack_->setCurrentIndex(serverPages_.back().stackIndex);
+                navTree_->setCurrentItem(serverPages_.back().treeItem);
+            } else {
+                contentStack_->setCurrentIndex(3);
+                navTree_->setCurrentItem(serversParent_);
+            }
+            break;
+        }
+    }
+}
+
+// ────────────────────────────────────────────────────────────
+// Page builders
+// ────────────────────────────────────────────────────────────
+
+QWidget *SettingsDialog::createGeneralPage()
+{
+    QWidget *page = new QWidget();
+    QVBoxLayout *layout = new QVBoxLayout(page);
+
+    QGroupBox *group = new QGroupBox("Switcher Settings", page);
     QFormLayout *form = new QFormLayout(group);
-    
-    enabledCheckbox_ = new QCheckBox("Enable automatic scene switching", content);
-    onlyWhenStreamingCheckbox_ = new QCheckBox("Only switch when streaming", content);
-    instantRecoverCheckbox_ = new QCheckBox("Instantly switch on bitrate recovery", content);
-    autoNotifyCheckbox_ = new QCheckBox("Enable auto-switch notifications", content);
-    
-    retryAttemptsSpinBox_ = new QSpinBox(content);
+    form->setFieldGrowthPolicy(QFormLayout::ExpandingFieldsGrow);
+
+    enabledCheckbox_ = new QCheckBox("Enable automatic scene switching", page);
+    onlyWhenStreamingCheckbox_ = new QCheckBox("Only switch when streaming", page);
+    instantRecoverCheckbox_ = new QCheckBox("Instantly switch on bitrate recovery", page);
+    autoNotifyCheckbox_ = new QCheckBox("Enable auto-switch notifications", page);
+
+    retryAttemptsSpinBox_ = new QSpinBox(page);
     retryAttemptsSpinBox_->setRange(1, 30);
     retryAttemptsSpinBox_->setValue(5);
     retryAttemptsSpinBox_->setToolTip("Number of consecutive checks before switching");
@@ -322,67 +521,63 @@ void SettingsDialog::setupGeneralTab(QWidget *tab)
     form->addRow(instantRecoverCheckbox_);
     form->addRow(autoNotifyCheckbox_);
     form->addRow("Retry Attempts:", retryAttemptsSpinBox_);
-    
+
     layout->addWidget(group);
     layout->addStretch();
-    wrapInScrollArea(content, tab);
+    return page;
 }
 
-void SettingsDialog::setupTriggersTab(QWidget *tab)
+QWidget *SettingsDialog::createTriggersPage()
 {
-    QWidget *content = new QWidget();
-    QVBoxLayout *layout = new QVBoxLayout(content);
-    
-    QGroupBox *group = new QGroupBox("Bitrate Triggers", content);
-    QFormLayout *form = new QFormLayout(group);
+    QWidget *page = new QWidget();
+    QVBoxLayout *layout = new QVBoxLayout(page);
 
-    lowBitrateSpinBox_ = new QSpinBox(content);
+    QGroupBox *group = new QGroupBox("Bitrate Triggers", page);
+    QFormLayout *form = new QFormLayout(group);
+    form->setFieldGrowthPolicy(QFormLayout::ExpandingFieldsGrow);
+
+    lowBitrateSpinBox_ = new QSpinBox(page);
     lowBitrateSpinBox_->setRange(0, 50000);
     lowBitrateSpinBox_->setValue(800);
     lowBitrateSpinBox_->setSuffix(" kbps");
-    lowBitrateSpinBox_->setToolTip("Switch to Low scene when bitrate drops below this");
 
-    rttThresholdSpinBox_ = new QSpinBox(content);
+    rttThresholdSpinBox_ = new QSpinBox(page);
     rttThresholdSpinBox_->setRange(0, 10000);
     rttThresholdSpinBox_->setValue(2500);
     rttThresholdSpinBox_->setSuffix(" ms");
-    rttThresholdSpinBox_->setToolTip("Switch to Low scene when RTT exceeds this (SRT only)");
 
-    offlineBitrateSpinBox_ = new QSpinBox(content);
+    offlineBitrateSpinBox_ = new QSpinBox(page);
     offlineBitrateSpinBox_->setRange(0, 10000);
     offlineBitrateSpinBox_->setValue(0);
     offlineBitrateSpinBox_->setSuffix(" kbps");
-    offlineBitrateSpinBox_->setToolTip("Switch to Offline when bitrate drops below this (0 = server offline)");
 
-    rttOfflineSpinBox_ = new QSpinBox(content);
+    rttOfflineSpinBox_ = new QSpinBox(page);
     rttOfflineSpinBox_->setRange(0, 30000);
     rttOfflineSpinBox_->setValue(0);
     rttOfflineSpinBox_->setSuffix(" ms");
-    rttOfflineSpinBox_->setToolTip("Switch to Offline when RTT exceeds this (0 = disabled)");
 
     form->addRow("Low Bitrate Threshold:", lowBitrateSpinBox_);
     form->addRow("RTT Threshold (Low):", rttThresholdSpinBox_);
     form->addRow("Offline Bitrate Threshold:", offlineBitrateSpinBox_);
     form->addRow("RTT Threshold (Offline):", rttOfflineSpinBox_);
-    
+
     layout->addWidget(group);
     layout->addStretch();
-    wrapInScrollArea(content, tab);
+    return page;
 }
 
-void SettingsDialog::setupScenesTab(QWidget *tab)
+QWidget *SettingsDialog::createScenesPage()
 {
-    QWidget *content = new QWidget();
-    QVBoxLayout *layout = new QVBoxLayout(content);
-    
-    // Main switching scenes
-    QGroupBox *mainGroup = new QGroupBox("Switching Scenes", content);
-    QFormLayout *mainForm = new QFormLayout(mainGroup);
+    QWidget *page = new QWidget();
+    QVBoxLayout *layout = new QVBoxLayout(page);
 
-    normalSceneCombo_ = new QComboBox(content);
-    lowSceneCombo_ = new QComboBox(content);
-    offlineSceneCombo_ = new QComboBox(content);
+    QGroupBox *mainGrp = new QGroupBox("Switching Scenes", page);
+    QFormLayout *mainForm = new QFormLayout(mainGrp);
+    mainForm->setFieldGrowthPolicy(QFormLayout::ExpandingFieldsGrow);
 
+    normalSceneCombo_ = new QComboBox(page);
+    lowSceneCombo_ = new QComboBox(page);
+    offlineSceneCombo_ = new QComboBox(page);
     populateSceneComboBox(normalSceneCombo_);
     populateSceneComboBox(lowSceneCombo_);
     populateSceneComboBox(offlineSceneCombo_);
@@ -390,17 +585,16 @@ void SettingsDialog::setupScenesTab(QWidget *tab)
     mainForm->addRow("Normal Scene:", normalSceneCombo_);
     mainForm->addRow("Low Bitrate Scene:", lowSceneCombo_);
     mainForm->addRow("Offline Scene:", offlineSceneCombo_);
-    layout->addWidget(mainGroup);
+    layout->addWidget(mainGrp);
 
-    // Optional scenes
-    QGroupBox *optGroup = new QGroupBox("Optional Scenes", content);
-    QFormLayout *optForm = new QFormLayout(optGroup);
+    QGroupBox *optGrp = new QGroupBox("Optional Scenes", page);
+    QFormLayout *optForm = new QFormLayout(optGrp);
+    optForm->setFieldGrowthPolicy(QFormLayout::ExpandingFieldsGrow);
 
-    startingSceneCombo_ = new QComboBox(content);
-    endingSceneCombo_ = new QComboBox(content);
-    privacySceneCombo_ = new QComboBox(content);
-    refreshSceneCombo_ = new QComboBox(content);
-
+    startingSceneCombo_ = new QComboBox(page);
+    endingSceneCombo_ = new QComboBox(page);
+    privacySceneCombo_ = new QComboBox(page);
+    refreshSceneCombo_ = new QComboBox(page);
     populateSceneComboBox(startingSceneCombo_, true);
     populateSceneComboBox(endingSceneCombo_, true);
     populateSceneComboBox(privacySceneCombo_, true);
@@ -410,348 +604,265 @@ void SettingsDialog::setupScenesTab(QWidget *tab)
     optForm->addRow("Ending Scene:", endingSceneCombo_);
     optForm->addRow("Privacy Scene:", privacySceneCombo_);
     optForm->addRow("Refresh Scene:", refreshSceneCombo_);
-    layout->addWidget(optGroup);
-    
+    layout->addWidget(optGrp);
+
     layout->addStretch();
-    wrapInScrollArea(content, tab);
+    return page;
 }
 
-void SettingsDialog::setupServersTab(QWidget *tab)
+QWidget *SettingsDialog::createServerPage(const StreamServerConfig *initial)
 {
-    QWidget *content = new QWidget();
-    QVBoxLayout *layout = new QVBoxLayout(content);
+    QWidget *page = new QWidget();
+    QVBoxLayout *layout = new QVBoxLayout(page);
 
-    serverTable_ = new QTableWidget(0, 6, content);
-    serverTable_->setHorizontalHeaderLabels({"Enabled", "Type", "Name", "Stats URL", "Stream Key", "Priority"});
-    serverTable_->verticalHeader()->setVisible(false);
-    serverTable_->horizontalHeader()->setStretchLastSection(false);
-    serverTable_->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Fixed);
-    serverTable_->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Fixed);
-    serverTable_->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Interactive);
-    serverTable_->horizontalHeader()->setSectionResizeMode(3, QHeaderView::Stretch);
-    serverTable_->horizontalHeader()->setSectionResizeMode(4, QHeaderView::Interactive);
-    serverTable_->horizontalHeader()->setSectionResizeMode(5, QHeaderView::Interactive);
-    serverTable_->setColumnWidth(0, 60);
-    serverTable_->setColumnWidth(1, 110);
-    serverTable_->setColumnWidth(2, 100);
-    serverTable_->setColumnWidth(4, 120);
-    serverTable_->setColumnWidth(5, 80);
-    serverTable_->verticalHeader()->setDefaultSectionSize(serverTable_->verticalHeader()->defaultSectionSize() + 15);
-    serverTable_->setSelectionBehavior(QAbstractItemView::SelectRows);
-    serverTable_->setSelectionMode(QAbstractItemView::SingleSelection);
-    layout->addWidget(serverTable_);
-
-    QHBoxLayout *btnLayout = new QHBoxLayout();
-    addServerBtn_ = new QPushButton("+ Add Server", content);
-    addServerBtn_->setStyleSheet(
-        "QPushButton { background-color: #a6e3a1; color: #1e1e2e; border: none; padding: 8px 18px; }"
-        "QPushButton:hover { background-color: #94e2d5; }"
-    );
-    removeServerBtn_ = new QPushButton("Remove", content);
-    removeServerBtn_->setStyleSheet(
-        "QPushButton { background-color: #f38ba8; color: #1e1e2e; border: none; padding: 8px 18px; }"
-        "QPushButton:hover { background-color: #eba0ac; }"
-    );
-    btnLayout->addWidget(addServerBtn_);
-    btnLayout->addWidget(removeServerBtn_);
-    btnLayout->addStretch();
-    layout->addLayout(btnLayout);
-
-    connect(addServerBtn_, &QPushButton::clicked, this, &SettingsDialog::onAddServer);
-    connect(removeServerBtn_, &QPushButton::clicked, this, &SettingsDialog::onRemoveServer);
-    wrapInScrollArea(content, tab);
-}
-
-void SettingsDialog::setupAdvancedTab(QWidget *tab)
-{
-    QWidget *content = new QWidget();
-    QVBoxLayout *layout = new QVBoxLayout(content);
-    
-    QGroupBox *group = new QGroupBox("Advanced Options", content);
+    QGroupBox *group = new QGroupBox("Server Configuration", page);
     QFormLayout *form = new QFormLayout(group);
+    form->setVerticalSpacing(14);
+    form->setContentsMargins(20, 30, 20, 20);
+    form->setFieldGrowthPolicy(QFormLayout::ExpandingFieldsGrow);
 
-    offlineTimeoutSpinBox_ = new QSpinBox(content);
-    offlineTimeoutSpinBox_->setRange(0, 120);
-    offlineTimeoutSpinBox_->setValue(0);
-    offlineTimeoutSpinBox_->setSuffix(" min");
-    offlineTimeoutSpinBox_->setToolTip("Auto-stop stream after X minutes offline (0 = disabled)");
+    QCheckBox *enabled = new QCheckBox("Enabled", page);
+    enabled->setObjectName("srv_enabled");
+    enabled->setChecked(initial ? initial->enabled : true);
 
-    recordWhileStreamingCheckbox_ = new QCheckBox("Auto-record while streaming", content);
-    switchToStartingCheckbox_ = new QCheckBox("Switch to Starting scene on stream start", content);
-    switchFromStartingCheckbox_ = new QCheckBox("Auto-switch from Starting to Live when feed detected", content);
+    QComboBox *type = new QComboBox(page);
+    type->setObjectName("srv_type");
+    populateServerTypeCombo(type);
+    if (initial) {
+        for (int i = 0; i < type->count(); i++) {
+            if (type->itemData(i).toInt() == static_cast<int>(initial->type)) {
+                type->setCurrentIndex(i);
+                break;
+            }
+        }
+    }
 
-    form->addRow("Offline Timeout:", offlineTimeoutSpinBox_);
-    form->addRow(recordWhileStreamingCheckbox_);
-    form->addRow(switchToStartingCheckbox_);
-    form->addRow(switchFromStartingCheckbox_);
-    
+    QLineEdit *name = new QLineEdit(page);
+    name->setObjectName("srv_name");
+    name->setPlaceholderText("e.g. My SRT Server");
+    if (initial) name->setText(QString::fromStdString(initial->name));
+
+    QLineEdit *url = new QLineEdit(page);
+    url->setObjectName("srv_url");
+    url->setPlaceholderText("http://localhost:8181/stats");
+    if (initial) url->setText(QString::fromStdString(initial->statsUrl));
+
+    QLineEdit *key = new QLineEdit(page);
+    key->setObjectName("srv_key");
+    key->setPlaceholderText("e.g. publish/live/feed1");
+    if (initial) key->setText(QString::fromStdString(initial->key));
+
+    QSpinBox *priority = new QSpinBox(page);
+    priority->setObjectName("srv_priority");
+    priority->setRange(0, 100);
+    priority->setToolTip("Higher priority servers are checked first");
+    if (initial) priority->setValue(initial->priority);
+
+    form->addRow(enabled);
+    form->addRow("Server Type:", type);
+    form->addRow("Name:", name);
+    form->addRow("Stats URL:", url);
+    form->addRow("Publisher:", key);
+    form->addRow("Priority:", priority);
+
     layout->addWidget(group);
-
-    // RIST stale frame fix
-    QGroupBox *ristGroup = new QGroupBox("RIST Stale Frame Fix", content);
-    QFormLayout *ristForm = new QFormLayout(ristGroup);
-
-    ristStaleFrameFixSpinBox_ = new QSpinBox(content);
-    ristStaleFrameFixSpinBox_->setRange(0, 300);
-    ristStaleFrameFixSpinBox_->setValue(0);
-    ristStaleFrameFixSpinBox_->setSuffix(" sec");
-    ristStaleFrameFixSpinBox_->setToolTip(
-        "When the stream goes offline, automatically run a media source fix after this many seconds "
-        "to clear the frozen last frame that RIST leaves behind. 0 = disabled.");
-
-    QLabel *ristHint = new QLabel(
-        "RIST encoders leave a single frozen frame on the media source when the stream stops. "
-        "This setting will automatically refresh the media source after the configured delay "
-        "once the stream goes offline, clearing that stale frame. Set to 0 to disable.", content);
-    ristHint->setWordWrap(true);
-    ristHint->setStyleSheet("QLabel { color: #a6adc8; font-size: 11px; padding: 4px; }");
-
-    ristForm->addRow("Auto-Fix Delay:", ristStaleFrameFixSpinBox_);
-    ristForm->addRow(ristHint);
-
-    layout->addWidget(ristGroup);
     layout->addStretch();
-    wrapInScrollArea(content, tab);
+    return page;
 }
 
-void SettingsDialog::setupChatTab(QWidget *tab)
+QWidget *SettingsDialog::createChatPage()
 {
-    QWidget *content = new QWidget();
-    QVBoxLayout *layout = new QVBoxLayout(content);
-    
-    // Chat connection settings
-    QGroupBox *connGroup = new QGroupBox("Chat Connection", content);
+    QWidget *page = new QWidget();
+    QVBoxLayout *layout = new QVBoxLayout(page);
+
+    QGroupBox *connGroup = new QGroupBox("Chat Connection", page);
     QFormLayout *connForm = new QFormLayout(connGroup);
+    connForm->setFieldGrowthPolicy(QFormLayout::ExpandingFieldsGrow);
     connForm->setVerticalSpacing(10);
     connForm->setContentsMargins(12, 24, 12, 12);
-    
-    chatEnabledCheckbox_ = new QCheckBox("Enable chat integration", content);
-    chatEnabledCheckbox_->setToolTip("Connect to chat for bot commands");
-    
-    chatPlatformCombo_ = new QComboBox(content);
+
+    chatEnabledCheckbox_ = new QCheckBox("Enable chat integration", page);
+    chatPlatformCombo_ = new QComboBox(page);
     chatPlatformCombo_->addItems({"Twitch", "Kick"});
-    
-    chatChannelEdit_ = new QLineEdit(content);
+
+    chatChannelEdit_ = new QLineEdit(page);
     chatChannelEdit_->setPlaceholderText("channel login or Kick slug");
-    
-    twitchConnWidget_ = new QWidget(content);
-    QFormLayout *twitchForm = new QFormLayout(twitchConnWidget_);
-    twitchForm->setContentsMargins(0, 0, 0, 0);
-    chatBotUsernameEdit_ = new QLineEdit(content);
+
+    chatBotUsernameEdit_ = new QLineEdit(page);
     chatBotUsernameEdit_->setPlaceholderText("(optional - uses channel name if empty)");
-    chatOauthEdit_ = new QLineEdit(content);
+    chatOauthEdit_ = new QLineEdit(page);
     chatOauthEdit_->setEchoMode(QLineEdit::Password);
     chatOauthEdit_->setPlaceholderText("oauth:xxxxxxxxxxxxxx");
-    chatOauthEdit_->setToolTip("Get your OAuth token from https://twitchapps.com/tmi/");
-    twitchForm->addRow("Bot Username:", chatBotUsernameEdit_);
-    twitchForm->addRow("OAuth Token:", chatOauthEdit_);
 
-    kickConnWidget_ = new QWidget(content);
-    QFormLayout *kickForm = new QFormLayout(kickConnWidget_);
-    kickForm->setContentsMargins(0, 0, 0, 0);
-    kickChannelIdEdit_ = new QLineEdit(content);
+    kickChannelIdEdit_ = new QLineEdit(page);
     kickChannelIdEdit_->setPlaceholderText("numeric channel id");
-    kickChatroomIdEdit_ = new QLineEdit(content);
+    kickChatroomIdEdit_ = new QLineEdit(page);
     kickChatroomIdEdit_->setPlaceholderText("numeric chatroom id");
-    kickForm->addRow("Channel ID:", kickChannelIdEdit_);
-    kickForm->addRow("Chatroom ID:", kickChatroomIdEdit_);
+
+    twitchBotLabel_ = new QLabel("Bot Username:", page);
+    twitchOauthLabel_ = new QLabel("OAuth Token:", page);
+    kickChannelLabel_ = new QLabel("Channel ID:", page);
+    kickChatroomLabel_ = new QLabel("Chatroom ID:", page);
 
     connForm->addRow(chatEnabledCheckbox_);
     connForm->addRow("Platform:", chatPlatformCombo_);
     connForm->addRow("Channel:", chatChannelEdit_);
-    connForm->addRow(twitchConnWidget_);
-    connForm->addRow(kickConnWidget_);
-
-    connect(chatPlatformCombo_, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
-            &SettingsDialog::updateChatPlatformUi);
-    
+    connForm->addRow(twitchBotLabel_, chatBotUsernameEdit_);
+    connForm->addRow(twitchOauthLabel_, chatOauthEdit_);
+    connForm->addRow(kickChannelLabel_, kickChannelIdEdit_);
+    connForm->addRow(kickChatroomLabel_, kickChatroomIdEdit_);
+    connect(chatPlatformCombo_, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, &SettingsDialog::updateChatPlatformUi);
     layout->addWidget(connGroup);
-    
-    // Chat permissions
-    QGroupBox *permGroup = new QGroupBox("Permissions", content);
+
+    QGroupBox *permGroup = new QGroupBox("Permissions", page);
     QFormLayout *permForm = new QFormLayout(permGroup);
+    permForm->setFieldGrowthPolicy(QFormLayout::ExpandingFieldsGrow);
     permForm->setVerticalSpacing(10);
     permForm->setContentsMargins(12, 24, 12, 12);
-    
-    chatAdminsEdit_ = new QLineEdit(content);
-    chatAdminsEdit_->setPlaceholderText("user1, user2, user3 (empty = channel owner only)");
-    chatAdminsEdit_->setToolTip("Comma-separated list of users who can use commands");
-    
-    chatAnnounceCheckbox_ = new QCheckBox("Announce scene changes in chat", content);
-    chatAnnounceCheckbox_->setToolTip("Twitch only; Kick chat send is not available here");
 
-    chatAutoStopRaidCheckbox_ = new QCheckBox("Stop stream when raiding / hosting out", content);
-    chatAnnounceRaidStopCheckbox_ = new QCheckBox("Announce raid stop in chat (Twitch only)", content);
-    
+    chatAdminsEdit_ = new QLineEdit(page);
+    chatAdminsEdit_->setPlaceholderText("user1, user2 (empty = channel owner only)");
+    chatAnnounceCheckbox_ = new QCheckBox("Announce scene changes in chat", page);
+    chatAutoStopRaidCheckbox_ = new QCheckBox("Stop stream when raiding / hosting out", page);
+    chatAnnounceRaidStopCheckbox_ = new QCheckBox("Announce raid stop in chat (Twitch only)", page);
+
     permForm->addRow("Allowed Users:", chatAdminsEdit_);
     permForm->addRow(chatAnnounceCheckbox_);
     permForm->addRow(chatAutoStopRaidCheckbox_);
     permForm->addRow(chatAnnounceRaidStopCheckbox_);
-    
     layout->addWidget(permGroup);
 
     updateChatPlatformUi();
-    
-    // Available commands info
-    QGroupBox *cmdGroup = new QGroupBox("Default Commands", content);
-    QVBoxLayout *cmdLayout = new QVBoxLayout(cmdGroup);
-    QLabel *cmdLabel = new QLabel(
-        "Default chat commands (customizable in the Commands tab):\n"
+
+    QGroupBox *cmdInfo = new QGroupBox("Default Commands", page);
+    QVBoxLayout *cmdLay = new QVBoxLayout(cmdInfo);
+    cmdLay->addWidget(new QLabel(
+        "Default chat commands (customizable in Commands):\n"
         "  !live  - Switch to Live scene\n"
         "  !low   - Switch to Low scene\n"
         "  !brb   - Switch to BRB/Offline scene\n"
         "  !privacy - Switch to Privacy scene\n"
-        "  !s <name> - Switch to any scene by name (!ss also works)\n"
-        "  !refresh - Refresh scene (fix issues)\n"
-        "  !fix   - Refresh media sources\n"
-        "  !status - Show current bitrate/status\n"
-        "  !trigger - Force a switch check\n"
-        "  !start - Start streaming\n"
-        "  !stop  - Stop streaming", content);
-    cmdLayout->addWidget(cmdLabel);
-    
-    layout->addWidget(cmdGroup);
+        "  !s <name> - Switch to any scene (!ss also works)\n"
+        "  !refresh / !fix / !status / !trigger / !start / !stop", page));
+    layout->addWidget(cmdInfo);
+
     layout->addStretch();
-    wrapInScrollArea(content, tab);
+    return page;
 }
 
-void SettingsDialog::setupCommandsTab(QWidget *tab)
+QWidget *SettingsDialog::createCommandsPage()
 {
-    QWidget *content = new QWidget();
-    QVBoxLayout *layout = new QVBoxLayout(content);
+    QWidget *page = new QWidget();
+    QVBoxLayout *layout = new QVBoxLayout(page);
 
-    QLabel *hint = new QLabel(
-        "Customize the chat command triggers. Each field sets the word "
-        "that users type in chat to invoke the corresponding action.",
-        content);
-    hint->setWordWrap(true);
-    hint->setStyleSheet("QLabel { color: #a6adc8; font-size: 11px; padding: 4px; }");
+    QLabel *hint = new QLabel("Customize the chat command triggers.", page);
+    hint->setStyleSheet("color: #a6adc8; font-size: 11px; padding: 4px;");
     layout->addWidget(hint);
 
-    QGroupBox *sceneGroup = new QGroupBox("Scene Commands", content);
-    QFormLayout *sceneForm = new QFormLayout(sceneGroup);
-    sceneForm->setVerticalSpacing(10);
-    sceneForm->setContentsMargins(12, 24, 12, 12);
+    QGroupBox *scGrp = new QGroupBox("Scene Commands", page);
+    QFormLayout *scForm = new QFormLayout(scGrp);
+    scForm->setFieldGrowthPolicy(QFormLayout::ExpandingFieldsGrow);
+    scForm->setVerticalSpacing(10);
+    scForm->setContentsMargins(12, 24, 12, 12);
+    cmdLiveEdit_ = new QLineEdit(page);
+    cmdLowEdit_ = new QLineEdit(page);
+    cmdBrbEdit_ = new QLineEdit(page);
+    cmdPrivacyEdit_ = new QLineEdit(page);
+    cmdSwitchSceneEdit_ = new QLineEdit(page);
+    scForm->addRow("Live:", cmdLiveEdit_);
+    scForm->addRow("Low:", cmdLowEdit_);
+    scForm->addRow("BRB:", cmdBrbEdit_);
+    scForm->addRow("Privacy:", cmdPrivacyEdit_);
+    scForm->addRow("Switch Scene:", cmdSwitchSceneEdit_);
+    layout->addWidget(scGrp);
 
-    cmdLiveEdit_ = new QLineEdit(content);
-    cmdLowEdit_ = new QLineEdit(content);
-    cmdBrbEdit_ = new QLineEdit(content);
-    cmdPrivacyEdit_ = new QLineEdit(content);
-    cmdSwitchSceneEdit_ = new QLineEdit(content);
-    cmdSwitchSceneEdit_->setToolTip("Switch to any scene by name. Both !s and !ss always work.");
-
-    sceneForm->addRow("Live:", cmdLiveEdit_);
-    sceneForm->addRow("Low:", cmdLowEdit_);
-    sceneForm->addRow("BRB / Offline:", cmdBrbEdit_);
-    sceneForm->addRow("Privacy:", cmdPrivacyEdit_);
-    sceneForm->addRow("Switch Scene:", cmdSwitchSceneEdit_);
-    layout->addWidget(sceneGroup);
-
-    QGroupBox *actionGroup = new QGroupBox("Action Commands", content);
-    QFormLayout *actionForm = new QFormLayout(actionGroup);
-    actionForm->setVerticalSpacing(10);
-    actionForm->setContentsMargins(12, 24, 12, 12);
-
-    cmdRefreshEdit_ = new QLineEdit(content);
-    cmdStatusEdit_ = new QLineEdit(content);
-    cmdTriggerEdit_ = new QLineEdit(content);
-    cmdFixEdit_ = new QLineEdit(content);
-    cmdStartEdit_ = new QLineEdit(content);
-    cmdStopEdit_ = new QLineEdit(content);
-
-    actionForm->addRow("Refresh:", cmdRefreshEdit_);
-    actionForm->addRow("Status:", cmdStatusEdit_);
-    actionForm->addRow("Trigger:", cmdTriggerEdit_);
-    actionForm->addRow("Fix:", cmdFixEdit_);
-    actionForm->addRow("Start Stream:", cmdStartEdit_);
-    actionForm->addRow("Stop Stream:", cmdStopEdit_);
-    layout->addWidget(actionGroup);
+    QGroupBox *acGrp = new QGroupBox("Action Commands", page);
+    QFormLayout *acForm = new QFormLayout(acGrp);
+    acForm->setFieldGrowthPolicy(QFormLayout::ExpandingFieldsGrow);
+    acForm->setVerticalSpacing(10);
+    acForm->setContentsMargins(12, 24, 12, 12);
+    cmdRefreshEdit_ = new QLineEdit(page);
+    cmdStatusEdit_ = new QLineEdit(page);
+    cmdTriggerEdit_ = new QLineEdit(page);
+    cmdFixEdit_ = new QLineEdit(page);
+    cmdStartEdit_ = new QLineEdit(page);
+    cmdStopEdit_ = new QLineEdit(page);
+    acForm->addRow("Refresh:", cmdRefreshEdit_);
+    acForm->addRow("Status:", cmdStatusEdit_);
+    acForm->addRow("Trigger:", cmdTriggerEdit_);
+    acForm->addRow("Fix:", cmdFixEdit_);
+    acForm->addRow("Start:", cmdStartEdit_);
+    acForm->addRow("Stop:", cmdStopEdit_);
+    layout->addWidget(acGrp);
 
     layout->addStretch();
-    wrapInScrollArea(content, tab);
+    return page;
 }
 
-void SettingsDialog::setupMessagesTab(QWidget *tab)
+QWidget *SettingsDialog::createMessagesPage()
 {
-    QWidget *scrollContent = new QWidget();
-    QVBoxLayout *layout = new QVBoxLayout(scrollContent);
+    QWidget *page = new QWidget();
+    QVBoxLayout *layout = new QVBoxLayout(page);
     layout->setSpacing(12);
-    
-    // Placeholder reference
-    QGroupBox *refGroup = new QGroupBox("Available Placeholders", scrollContent);
-    QVBoxLayout *refLayout = new QVBoxLayout(refGroup);
+
+    QGroupBox *refGrp = new QGroupBox("Available Placeholders", page);
+    QVBoxLayout *refLay = new QVBoxLayout(refGrp);
     QLabel *refLabel = new QLabel(
-        "<span style='color: #89b4fa;'>{bitrate}</span> - Current bitrate (kbps)&nbsp;&nbsp;"
-        "<span style='color: #89b4fa;'>{rtt}</span> - Round-trip time (ms)&nbsp;&nbsp;"
+        "<span style='color: #89b4fa;'>{bitrate}</span> - Current bitrate&nbsp;&nbsp;"
+        "<span style='color: #89b4fa;'>{rtt}</span> - RTT&nbsp;&nbsp;"
         "<span style='color: #89b4fa;'>{scene}</span> - Current scene&nbsp;&nbsp;"
         "<span style='color: #89b4fa;'>{prev_scene}</span> - Previous scene<br>"
-        "<span style='color: #89b4fa;'>{server}</span> - Active server name&nbsp;&nbsp;"
+        "<span style='color: #89b4fa;'>{server}</span> - Active server&nbsp;&nbsp;"
         "<span style='color: #89b4fa;'>{status}</span> - Online/Offline&nbsp;&nbsp;"
-        "<span style='color: #89b4fa;'>{uptime}</span> - Stream state", scrollContent);
+        "<span style='color: #89b4fa;'>{target}</span> - Raid target", page);
     refLabel->setWordWrap(true);
-    refLabel->setStyleSheet("QLabel { color: #a6adc8; font-size: 11px; padding: 4px; }");
-    refLayout->addWidget(refLabel);
-    layout->addWidget(refGroup);
+    refLabel->setStyleSheet("color: #a6adc8; font-size: 11px; padding: 4px;");
+    refLay->addWidget(refLabel);
+    layout->addWidget(refGrp);
 
-    // Auto-switch message templates
-    QGroupBox *autoGroup = new QGroupBox("Auto-Switch Messages", scrollContent);
-    QFormLayout *autoForm = new QFormLayout(autoGroup);
+    QGroupBox *autoGrp = new QGroupBox("Auto-Switch Messages", page);
+    QFormLayout *autoForm = new QFormLayout(autoGrp);
+    autoForm->setFieldGrowthPolicy(QFormLayout::ExpandingFieldsGrow);
     autoForm->setVerticalSpacing(10);
     autoForm->setContentsMargins(12, 24, 12, 12);
-    
-    msgSwitchedLiveEdit_ = new QLineEdit(scrollContent);
-    msgSwitchedLiveEdit_->setToolTip("Message sent when auto-switching to Live scene");
-    msgSwitchedLowEdit_ = new QLineEdit(scrollContent);
-    msgSwitchedLowEdit_->setToolTip("Message sent when auto-switching to Low scene");
-    msgSwitchedOfflineEdit_ = new QLineEdit(scrollContent);
-    msgSwitchedOfflineEdit_->setToolTip("Message sent when auto-switching to Offline scene");
-    
+    msgSwitchedLiveEdit_ = new QLineEdit(page);
+    msgSwitchedLowEdit_ = new QLineEdit(page);
+    msgSwitchedOfflineEdit_ = new QLineEdit(page);
     autoForm->addRow("Switched to Live:", msgSwitchedLiveEdit_);
     autoForm->addRow("Switched to Low:", msgSwitchedLowEdit_);
     autoForm->addRow("Switched to Offline:", msgSwitchedOfflineEdit_);
-    layout->addWidget(autoGroup);
-    
-    // Command response templates
-    QGroupBox *cmdGroup = new QGroupBox("Command Response Messages", scrollContent);
-    QFormLayout *cmdForm = new QFormLayout(cmdGroup);
+    layout->addWidget(autoGrp);
+
+    QGroupBox *cmdGrp = new QGroupBox("Command Response Messages", page);
+    QFormLayout *cmdForm = new QFormLayout(cmdGrp);
+    cmdForm->setFieldGrowthPolicy(QFormLayout::ExpandingFieldsGrow);
     cmdForm->setVerticalSpacing(10);
     cmdForm->setContentsMargins(12, 24, 12, 12);
-    
-    msgStatusEdit_ = new QLineEdit(scrollContent);
-    msgStatusEdit_->setToolTip("Response for !status when online");
-    msgStatusOfflineEdit_ = new QLineEdit(scrollContent);
-    msgStatusOfflineEdit_->setToolTip("Response for !status when offline");
-    msgRefreshingEdit_ = new QLineEdit(scrollContent);
-    msgFixEdit_ = new QLineEdit(scrollContent);
-    msgStreamStartedEdit_ = new QLineEdit(scrollContent);
-    msgStreamStoppedEdit_ = new QLineEdit(scrollContent);
-    msgSceneSwitchedEdit_ = new QLineEdit(scrollContent);
-    msgSceneSwitchedEdit_->setToolTip("Used for !live, !low, !brb, !ss commands");
-    
+    msgStatusEdit_ = new QLineEdit(page);
+    msgStatusOfflineEdit_ = new QLineEdit(page);
+    msgRefreshingEdit_ = new QLineEdit(page);
+    msgFixEdit_ = new QLineEdit(page);
+    msgStreamStartedEdit_ = new QLineEdit(page);
+    msgStreamStoppedEdit_ = new QLineEdit(page);
+    msgRaidStopEdit_ = new QLineEdit(page);
+    msgSceneSwitchedEdit_ = new QLineEdit(page);
     cmdForm->addRow("Status (online):", msgStatusEdit_);
     cmdForm->addRow("Status (offline):", msgStatusOfflineEdit_);
     cmdForm->addRow("Refreshing:", msgRefreshingEdit_);
     cmdForm->addRow("Fix attempt:", msgFixEdit_);
     cmdForm->addRow("Stream started:", msgStreamStartedEdit_);
     cmdForm->addRow("Stream stopped:", msgStreamStoppedEdit_);
-    msgRaidStopEdit_ = new QLineEdit(scrollContent);
-    msgRaidStopEdit_->setToolTip("Sent before stopping on raid-out (Twitch). Placeholder: {target}");
     cmdForm->addRow("Raid stop:", msgRaidStopEdit_);
     cmdForm->addRow("Scene switched:", msgSceneSwitchedEdit_);
-    layout->addWidget(cmdGroup);
-    
-    // Custom commands
-    QGroupBox *customGroup = new QGroupBox("Custom Commands", scrollContent);
-    QVBoxLayout *customLayout = new QVBoxLayout(customGroup);
-    customLayout->setContentsMargins(12, 24, 12, 12);
-    customLayout->setSpacing(8);
-    
-    QLabel *customHint = new QLabel(
-        "Define custom chat commands. The response supports all placeholders above.", scrollContent);
-    customHint->setStyleSheet("QLabel { color: #a6adc8; font-size: 11px; }");
-    customLayout->addWidget(customHint);
-    
-    customCmdTable_ = new QTableWidget(0, 3, scrollContent);
+    layout->addWidget(cmdGrp);
+
+    // Custom commands (kept as a table -- it's the right widget for this)
+    QGroupBox *customGrp = new QGroupBox("Custom Commands", page);
+    QVBoxLayout *customLay = new QVBoxLayout(customGrp);
+    customLay->setContentsMargins(12, 24, 12, 12);
+
+    customCmdTable_ = new QTableWidget(0, 3, page);
     customCmdTable_->setHorizontalHeaderLabels({"Enabled", "Trigger", "Response"});
     customCmdTable_->verticalHeader()->setVisible(false);
     customCmdTable_->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Fixed);
@@ -762,63 +873,89 @@ void SettingsDialog::setupMessagesTab(QWidget *tab)
     customCmdTable_->setSelectionBehavior(QAbstractItemView::SelectRows);
     customCmdTable_->setSelectionMode(QAbstractItemView::SingleSelection);
     customCmdTable_->setMinimumHeight(120);
-    customLayout->addWidget(customCmdTable_);
-    
-    QHBoxLayout *customBtnLayout = new QHBoxLayout();
-    addCustomCmdBtn_ = new QPushButton("+ Add Command", scrollContent);
+    customLay->addWidget(customCmdTable_);
+
+    QHBoxLayout *cBtnLay = new QHBoxLayout();
+    addCustomCmdBtn_ = new QPushButton("+ Add Command", page);
     addCustomCmdBtn_->setStyleSheet(
         "QPushButton { background-color: #a6e3a1; color: #1e1e2e; border: none; padding: 6px 14px; }"
         "QPushButton:hover { background-color: #94e2d5; }");
-    removeCustomCmdBtn_ = new QPushButton("Remove", scrollContent);
+    removeCustomCmdBtn_ = new QPushButton("Remove", page);
     removeCustomCmdBtn_->setStyleSheet(
         "QPushButton { background-color: #f38ba8; color: #1e1e2e; border: none; padding: 6px 14px; }"
         "QPushButton:hover { background-color: #eba0ac; }");
-    customBtnLayout->addWidget(addCustomCmdBtn_);
-    customBtnLayout->addWidget(removeCustomCmdBtn_);
-    customBtnLayout->addStretch();
-    customLayout->addLayout(customBtnLayout);
-    
+    cBtnLay->addWidget(addCustomCmdBtn_);
+    cBtnLay->addWidget(removeCustomCmdBtn_);
+    cBtnLay->addStretch();
+    customLay->addLayout(cBtnLay);
+
     connect(addCustomCmdBtn_, &QPushButton::clicked, this, [this]() {
         int row = customCmdTable_->rowCount();
         customCmdTable_->insertRow(row);
-        QCheckBox *enabledCheck = new QCheckBox();
-        enabledCheck->setChecked(true);
-        customCmdTable_->setCellWidget(row, 0, enabledCheck);
+        QCheckBox *chk = new QCheckBox();
+        chk->setChecked(true);
+        customCmdTable_->setCellWidget(row, 0, chk);
         customCmdTable_->setItem(row, 1, new QTableWidgetItem("!mycommand"));
-        customCmdTable_->setItem(row, 2, new QTableWidgetItem("Bitrate: {bitrate} kbps | RTT: {rtt} ms"));
+        customCmdTable_->setItem(row, 2, new QTableWidgetItem("Bitrate: {bitrate} kbps"));
     });
-    
     connect(removeCustomCmdBtn_, &QPushButton::clicked, this, [this]() {
         int row = customCmdTable_->currentRow();
         if (row >= 0) customCmdTable_->removeRow(row);
     });
-    
-    layout->addWidget(customGroup);
-    
-    wrapInScrollArea(scrollContent, tab);
+
+    layout->addWidget(customGrp);
+    return page;
 }
 
-void SettingsDialog::populateSceneComboBox(QComboBox *combo, bool allowEmpty)
+QWidget *SettingsDialog::createAdvancedPage()
 {
-    combo->clear();
-    
-    if (allowEmpty) {
-        combo->addItem("(None)", "");
-    }
-    
-    obs_frontend_source_list scenes = {};
-    obs_frontend_get_scenes(&scenes);
-    
-    for (size_t i = 0; i < scenes.sources.num; i++) {
-        obs_source_t *source = scenes.sources.array[i];
-        const char *name = obs_source_get_name(source);
-        if (name) {
-            combo->addItem(QString::fromUtf8(name), QString::fromUtf8(name));
-        }
-    }
-    
-    obs_frontend_source_list_free(&scenes);
+    QWidget *page = new QWidget();
+    QVBoxLayout *layout = new QVBoxLayout(page);
+
+    QGroupBox *group = new QGroupBox("Advanced Options", page);
+    QFormLayout *form = new QFormLayout(group);
+    form->setFieldGrowthPolicy(QFormLayout::ExpandingFieldsGrow);
+
+    offlineTimeoutSpinBox_ = new QSpinBox(page);
+    offlineTimeoutSpinBox_->setRange(0, 120);
+    offlineTimeoutSpinBox_->setSuffix(" min");
+    offlineTimeoutSpinBox_->setToolTip("Auto-stop stream after X minutes offline (0 = disabled)");
+
+    recordWhileStreamingCheckbox_ = new QCheckBox("Auto-record while streaming", page);
+    switchToStartingCheckbox_ = new QCheckBox("Switch to Starting scene on stream start", page);
+    switchFromStartingCheckbox_ = new QCheckBox("Auto-switch from Starting to Live when feed detected", page);
+
+    form->addRow("Offline Timeout:", offlineTimeoutSpinBox_);
+    form->addRow(recordWhileStreamingCheckbox_);
+    form->addRow(switchToStartingCheckbox_);
+    form->addRow(switchFromStartingCheckbox_);
+    layout->addWidget(group);
+
+    QGroupBox *ristGrp = new QGroupBox("RIST Stale Frame Fix", page);
+    QFormLayout *ristForm = new QFormLayout(ristGrp);
+    ristForm->setFieldGrowthPolicy(QFormLayout::ExpandingFieldsGrow);
+    ristStaleFrameFixSpinBox_ = new QSpinBox(page);
+    ristStaleFrameFixSpinBox_->setRange(0, 300);
+    ristStaleFrameFixSpinBox_->setSuffix(" sec");
+    ristStaleFrameFixSpinBox_->setToolTip("Auto-refresh RIST media sources after going offline (0 = disabled)");
+
+    QLabel *ristHint = new QLabel(
+        "RIST encoders leave a frozen frame when the stream stops. "
+        "This will refresh the source after the configured delay. Set to 0 to disable.", page);
+    ristHint->setWordWrap(true);
+    ristHint->setStyleSheet("color: #a6adc8; font-size: 11px; padding: 4px;");
+
+    ristForm->addRow("Auto-Fix Delay:", ristStaleFrameFixSpinBox_);
+    ristForm->addRow(ristHint);
+    layout->addWidget(ristGrp);
+
+    layout->addStretch();
+    return page;
 }
+
+// ────────────────────────────────────────────────────────────
+// Load / Save
+// ────────────────────────────────────────────────────────────
 
 void SettingsDialog::loadSettings()
 {
@@ -833,77 +970,29 @@ void SettingsDialog::loadSettings()
     offlineBitrateSpinBox_->setValue(config_->triggers.offline);
     rttOfflineSpinBox_->setValue(config_->triggers.rttOffline);
 
-    // Main scenes
-    int idx = normalSceneCombo_->findText(QString::fromStdString(config_->scenes.normal));
-    if (idx >= 0) normalSceneCombo_->setCurrentIndex(idx);
-    
-    idx = lowSceneCombo_->findText(QString::fromStdString(config_->scenes.low));
-    if (idx >= 0) lowSceneCombo_->setCurrentIndex(idx);
-    
-    idx = offlineSceneCombo_->findText(QString::fromStdString(config_->scenes.offline));
-    if (idx >= 0) offlineSceneCombo_->setCurrentIndex(idx);
+    auto setCombo = [](QComboBox *c, const std::string &v) {
+        int idx = c->findText(QString::fromStdString(v));
+        if (idx >= 0) c->setCurrentIndex(idx);
+    };
+    setCombo(normalSceneCombo_, config_->scenes.normal);
+    setCombo(lowSceneCombo_, config_->scenes.low);
+    setCombo(offlineSceneCombo_, config_->scenes.offline);
+    setCombo(startingSceneCombo_, config_->optionalScenes.starting);
+    setCombo(endingSceneCombo_, config_->optionalScenes.ending);
+    setCombo(privacySceneCombo_, config_->optionalScenes.privacy);
+    setCombo(refreshSceneCombo_, config_->optionalScenes.refresh);
 
-    // Optional scenes
-    idx = startingSceneCombo_->findText(QString::fromStdString(config_->optionalScenes.starting));
-    if (idx >= 0) startingSceneCombo_->setCurrentIndex(idx);
-    
-    idx = endingSceneCombo_->findText(QString::fromStdString(config_->optionalScenes.ending));
-    if (idx >= 0) endingSceneCombo_->setCurrentIndex(idx);
-    
-    idx = privacySceneCombo_->findText(QString::fromStdString(config_->optionalScenes.privacy));
-    if (idx >= 0) privacySceneCombo_->setCurrentIndex(idx);
-    
-    idx = refreshSceneCombo_->findText(QString::fromStdString(config_->optionalScenes.refresh));
-    if (idx >= 0) refreshSceneCombo_->setCurrentIndex(idx);
-
-    // Advanced options
     offlineTimeoutSpinBox_->setValue(config_->options.offlineTimeoutMinutes);
     recordWhileStreamingCheckbox_->setChecked(config_->options.recordWhileStreaming);
     switchToStartingCheckbox_->setChecked(config_->options.switchToStartingOnStreamStart);
     switchFromStartingCheckbox_->setChecked(config_->options.switchFromStartingToLive);
     ristStaleFrameFixSpinBox_->setValue(config_->options.ristStaleFrameFixSec);
 
-    // Load servers
-    serverTable_->setRowCount(0);
-    for (const auto &server : config_->servers) {
-        int row = serverTable_->rowCount();
-        serverTable_->insertRow(row);
+    // Servers — create a page for each
+    for (const auto &srv : config_->servers)
+        addServerEntry(&srv);
 
-        QCheckBox *enabledCheck = new QCheckBox();
-        enabledCheck->setChecked(server.enabled);
-        serverTable_->setCellWidget(row, 0, enabledCheck);
-
-        QComboBox *typeCombo = new QComboBox();
-        typeCombo->addItem("IRLHosting", static_cast<int>(ServerType::IrlHosting));
-        typeCombo->addItem("BELABOX", static_cast<int>(ServerType::Belabox));
-        typeCombo->addItem("NGINX", static_cast<int>(ServerType::Nginx));
-        typeCombo->addItem("SRT Live Server", static_cast<int>(ServerType::SrtLiveServer));
-        typeCombo->addItem("MediaMTX", static_cast<int>(ServerType::Mediamtx));
-        typeCombo->addItem("Node Media Server", static_cast<int>(ServerType::NodeMediaServer));
-        typeCombo->addItem("Nimble", static_cast<int>(ServerType::Nimble));
-        typeCombo->addItem("RIST", static_cast<int>(ServerType::Rist));
-        typeCombo->addItem("OpenIRL", static_cast<int>(ServerType::OpenIRL));
-        typeCombo->addItem("Xiu", static_cast<int>(ServerType::Xiu));
-        // Select the matching entry by ServerType data value
-        for (int i = 0; i < typeCombo->count(); i++) {
-            if (typeCombo->itemData(i).toInt() == static_cast<int>(server.type)) {
-                typeCombo->setCurrentIndex(i);
-                break;
-            }
-        }
-        serverTable_->setCellWidget(row, 1, typeCombo);
-
-        serverTable_->setItem(row, 2, new QTableWidgetItem(QString::fromStdString(server.name)));
-        serverTable_->setItem(row, 3, new QTableWidgetItem(QString::fromStdString(server.statsUrl)));
-        serverTable_->setItem(row, 4, new QTableWidgetItem(QString::fromStdString(server.key)));
-        
-        QSpinBox *prioritySpin = new QSpinBox();
-        prioritySpin->setRange(0, 100);
-        prioritySpin->setValue(server.priority);
-        serverTable_->setCellWidget(row, 5, prioritySpin);
-    }
-
-    // Load chat settings
+    // Chat
     chatEnabledCheckbox_->setChecked(config_->chat.enabled);
     chatPlatformCombo_->setCurrentIndex(static_cast<int>(config_->chat.platform));
     chatChannelEdit_->setText(QString::fromStdString(config_->chat.channel));
@@ -915,8 +1004,7 @@ void SettingsDialog::loadSettings()
     chatAutoStopRaidCheckbox_->setChecked(config_->chat.autoStopStreamOnRaid);
     chatAnnounceRaidStopCheckbox_->setChecked(config_->chat.announceRaidStop);
     updateChatPlatformUi();
-    
-    // Convert admins vector to comma-separated string
+
     QString adminsStr;
     for (size_t i = 0; i < config_->chat.admins.size(); i++) {
         if (i > 0) adminsStr += ", ";
@@ -924,7 +1012,6 @@ void SettingsDialog::loadSettings()
     }
     chatAdminsEdit_->setText(adminsStr);
 
-    // Load command overrides
     cmdLiveEdit_->setText(QString::fromStdString(config_->chat.cmdLive));
     cmdLowEdit_->setText(QString::fromStdString(config_->chat.cmdLow));
     cmdBrbEdit_->setText(QString::fromStdString(config_->chat.cmdBrb));
@@ -937,7 +1024,6 @@ void SettingsDialog::loadSettings()
     cmdStartEdit_->setText(QString::fromStdString(config_->chat.cmdStart));
     cmdStopEdit_->setText(QString::fromStdString(config_->chat.cmdStop));
 
-    // Load message templates
     msgSwitchedLiveEdit_->setText(QString::fromStdString(config_->messages.switchedToLive));
     msgSwitchedLowEdit_->setText(QString::fromStdString(config_->messages.switchedToLow));
     msgSwitchedOfflineEdit_->setText(QString::fromStdString(config_->messages.switchedToOffline));
@@ -950,23 +1036,24 @@ void SettingsDialog::loadSettings()
     msgRaidStopEdit_->setText(QString::fromStdString(config_->messages.raidStop));
     msgSceneSwitchedEdit_->setText(QString::fromStdString(config_->messages.sceneSwitched));
 
-    // Load custom commands
     customCmdTable_->setRowCount(0);
     for (const auto &cmd : config_->customCommands) {
         int row = customCmdTable_->rowCount();
         customCmdTable_->insertRow(row);
-        QCheckBox *enabledCheck = new QCheckBox();
-        enabledCheck->setChecked(cmd.enabled);
-        customCmdTable_->setCellWidget(row, 0, enabledCheck);
+        QCheckBox *chk = new QCheckBox();
+        chk->setChecked(cmd.enabled);
+        customCmdTable_->setCellWidget(row, 0, chk);
         customCmdTable_->setItem(row, 1, new QTableWidgetItem(QString::fromStdString(cmd.trigger)));
         customCmdTable_->setItem(row, 2, new QTableWidgetItem(QString::fromStdString(cmd.response)));
     }
+
+    // Start on General page
+    navTree_->setCurrentItem(navTree_->topLevelItem(0));
+    contentStack_->setCurrentIndex(0);
 }
 
 void SettingsDialog::saveSettings()
 {
-    // hold the write lock so the switcher thread doesn't read
-    // a half-written scene name and go somewhere weird
     config_->lockWrite();
 
     config_->enabled = enabledCheckbox_->isChecked();
@@ -995,35 +1082,22 @@ void SettingsDialog::saveSettings()
     config_->options.switchFromStartingToLive = switchFromStartingCheckbox_->isChecked();
     config_->options.ristStaleFrameFixSec = ristStaleFrameFixSpinBox_->value();
 
-    // Save servers
+    // Servers from sidebar pages
     config_->servers.clear();
-    for (int row = 0; row < serverTable_->rowCount(); row++) {
-        StreamServerConfig server;
-        
-        QCheckBox *enabledCheck = qobject_cast<QCheckBox*>(serverTable_->cellWidget(row, 0));
-        server.enabled = enabledCheck ? enabledCheck->isChecked() : true;
-
-        QComboBox *typeCombo = qobject_cast<QComboBox*>(serverTable_->cellWidget(row, 1));
-        server.type = typeCombo ? static_cast<ServerType>(typeCombo->currentData().toInt()) : ServerType::Belabox;
-
-        QTableWidgetItem *nameItem = serverTable_->item(row, 2);
-        server.name = nameItem ? nameItem->text().toStdString() : "";
-
-        QTableWidgetItem *urlItem = serverTable_->item(row, 3);
-        server.statsUrl = urlItem ? urlItem->text().toStdString() : "";
-
-        QTableWidgetItem *keyItem = serverTable_->item(row, 4);
-        server.key = keyItem ? keyItem->text().toStdString() : "";
-
-        QSpinBox *prioritySpin = qobject_cast<QSpinBox*>(serverTable_->cellWidget(row, 5));
-        server.priority = prioritySpin ? prioritySpin->value() : 0;
-
-        config_->servers.push_back(server);
+    for (const auto &sp : serverPages_) {
+        StreamServerConfig srv;
+        srv.enabled = sp.enabledCheck ? sp.enabledCheck->isChecked() : true;
+        srv.type = sp.typeCombo
+            ? static_cast<ServerType>(sp.typeCombo->currentData().toInt())
+            : ServerType::Belabox;
+        srv.name = sp.nameEdit ? sp.nameEdit->text().toStdString() : "";
+        srv.statsUrl = sp.urlEdit ? sp.urlEdit->text().toStdString() : "";
+        srv.key = sp.keyEdit ? sp.keyEdit->text().toStdString() : "";
+        srv.priority = sp.prioritySpin ? sp.prioritySpin->value() : 0;
+        config_->servers.push_back(srv);
     }
-    
     config_->sortServersByPriority();
 
-    // Save chat settings
     config_->chat.enabled = chatEnabledCheckbox_->isChecked();
     config_->chat.platform = static_cast<ChatPlatform>(chatPlatformCombo_->currentIndex());
     config_->chat.channel = chatChannelEdit_->text().toStdString();
@@ -1034,18 +1108,15 @@ void SettingsDialog::saveSettings()
     config_->chat.kickChatroomId = kickChatroomIdEdit_->text().trimmed().toULongLong();
     config_->chat.autoStopStreamOnRaid = chatAutoStopRaidCheckbox_->isChecked();
     config_->chat.announceRaidStop = chatAnnounceRaidStopCheckbox_->isChecked();
-    
-    // Parse admins from comma-separated string
+
     config_->chat.admins.clear();
     QString adminsStr = chatAdminsEdit_->text();
     if (!adminsStr.isEmpty()) {
-        QStringList adminsList = adminsStr.split(',', Qt::SkipEmptyParts);
-        for (const QString &admin : adminsList) {
-            config_->chat.admins.push_back(admin.trimmed().toStdString());
-        }
+        QStringList list = adminsStr.split(',', Qt::SkipEmptyParts);
+        for (const QString &a : list)
+            config_->chat.admins.push_back(a.trimmed().toStdString());
     }
 
-    // Save command overrides
     config_->chat.cmdLive = cmdLiveEdit_->text().toStdString();
     config_->chat.cmdLow = cmdLowEdit_->text().toStdString();
     config_->chat.cmdBrb = cmdBrbEdit_->text().toStdString();
@@ -1058,7 +1129,6 @@ void SettingsDialog::saveSettings()
     config_->chat.cmdStart = cmdStartEdit_->text().toStdString();
     config_->chat.cmdStop = cmdStopEdit_->text().toStdString();
 
-    // Save message templates
     config_->messages.switchedToLive = msgSwitchedLiveEdit_->text().toStdString();
     config_->messages.switchedToLow = msgSwitchedLowEdit_->text().toStdString();
     config_->messages.switchedToOffline = msgSwitchedOfflineEdit_->text().toStdString();
@@ -1071,76 +1141,33 @@ void SettingsDialog::saveSettings()
     config_->messages.raidStop = msgRaidStopEdit_->text().toStdString();
     config_->messages.sceneSwitched = msgSceneSwitchedEdit_->text().toStdString();
 
-    // Save custom commands
     config_->customCommands.clear();
     for (int row = 0; row < customCmdTable_->rowCount(); row++) {
         CustomChatCommand cmd;
-        QCheckBox *enabledCheck = qobject_cast<QCheckBox*>(customCmdTable_->cellWidget(row, 0));
-        cmd.enabled = enabledCheck ? enabledCheck->isChecked() : true;
-        QTableWidgetItem *triggerItem = customCmdTable_->item(row, 1);
-        cmd.trigger = triggerItem ? triggerItem->text().toStdString() : "";
-        QTableWidgetItem *responseItem = customCmdTable_->item(row, 2);
-        cmd.response = responseItem ? responseItem->text().toStdString() : "";
-        if (!cmd.trigger.empty()) {
+        QCheckBox *chk = qobject_cast<QCheckBox *>(customCmdTable_->cellWidget(row, 0));
+        cmd.enabled = chk ? chk->isChecked() : true;
+        QTableWidgetItem *ti = customCmdTable_->item(row, 1);
+        cmd.trigger = ti ? ti->text().toStdString() : "";
+        QTableWidgetItem *ri = customCmdTable_->item(row, 2);
+        cmd.response = ri ? ri->text().toStdString() : "";
+        if (!cmd.trigger.empty())
             config_->customCommands.push_back(cmd);
-        }
     }
 
     config_->unlockWrite();
 }
 
-void SettingsDialog::onAddServer()
-{
-    int row = serverTable_->rowCount();
-    serverTable_->insertRow(row);
-
-    QCheckBox *enabledCheck = new QCheckBox();
-    enabledCheck->setChecked(true);
-    serverTable_->setCellWidget(row, 0, enabledCheck);
-
-    QComboBox *typeCombo = new QComboBox();
-    typeCombo->addItem("IRLHosting", static_cast<int>(ServerType::IrlHosting));
-    typeCombo->addItem("BELABOX", static_cast<int>(ServerType::Belabox));
-    typeCombo->addItem("NGINX", static_cast<int>(ServerType::Nginx));
-    typeCombo->addItem("SRT Live Server", static_cast<int>(ServerType::SrtLiveServer));
-    typeCombo->addItem("MediaMTX", static_cast<int>(ServerType::Mediamtx));
-    typeCombo->addItem("Node Media Server", static_cast<int>(ServerType::NodeMediaServer));
-    typeCombo->addItem("Nimble", static_cast<int>(ServerType::Nimble));
-    typeCombo->addItem("RIST", static_cast<int>(ServerType::Rist));
-    typeCombo->addItem("OpenIRL", static_cast<int>(ServerType::OpenIRL));
-    typeCombo->addItem("Xiu", static_cast<int>(ServerType::Xiu));
-    serverTable_->setCellWidget(row, 1, typeCombo);
-
-    serverTable_->setItem(row, 2, new QTableWidgetItem("New Server"));
-    serverTable_->setItem(row, 3, new QTableWidgetItem("http://"));
-    serverTable_->setItem(row, 4, new QTableWidgetItem(""));
-    
-    QSpinBox *prioritySpin = new QSpinBox();
-    prioritySpin->setRange(0, 100);
-    prioritySpin->setValue(0);
-    serverTable_->setCellWidget(row, 5, prioritySpin);
-}
-
-void SettingsDialog::onRemoveServer()
-{
-    int row = serverTable_->currentRow();
-    if (row >= 0) {
-        serverTable_->removeRow(row);
-    }
-}
+// ────────────────────────────────────────────────────────────
+// Slots
+// ────────────────────────────────────────────────────────────
 
 void SettingsDialog::onApply()
 {
     saveSettings();
-
     if (switcher_) {
         switcher_->reloadServers();
-
-        // tell the switcher loop to handle the reconnect on its
-        // own thread instead of doing socket stuff from the UI
         switcher_->requestChatReconnect();
     }
-
     updateStreamingFieldStates();
 }
 
@@ -1153,15 +1180,20 @@ void SettingsDialog::onSave()
 void SettingsDialog::updateChatPlatformUi()
 {
     bool twitch = chatPlatformCombo_->currentIndex() == static_cast<int>(ChatPlatform::Twitch);
-    twitchConnWidget_->setVisible(twitch);
-    kickConnWidget_->setVisible(!twitch);
+    twitchBotLabel_->setVisible(twitch);
+    chatBotUsernameEdit_->setVisible(twitch);
+    twitchOauthLabel_->setVisible(twitch);
+    chatOauthEdit_->setVisible(twitch);
+    kickChannelLabel_->setVisible(!twitch);
+    kickChannelIdEdit_->setVisible(!twitch);
+    kickChatroomLabel_->setVisible(!twitch);
+    kickChatroomIdEdit_->setVisible(!twitch);
     chatAnnounceRaidStopCheckbox_->setEnabled(twitch);
 }
 
 void SettingsDialog::updateStreamingFieldStates()
 {
     bool streaming = switcher_ && switcher_->isCurrentlyStreaming();
-
     chatEnabledCheckbox_->setEnabled(!streaming);
     chatPlatformCombo_->setEnabled(!streaming);
     chatChannelEdit_->setEnabled(!streaming);
@@ -1180,8 +1212,7 @@ void SettingsDialog::refreshStatus()
         return;
     }
 
-    QString status = QString::fromStdString(switcher_->getStatusString());
-    statusLabel_->setText("Status: " + status);
+    statusLabel_->setText("Status: " + QString::fromStdString(switcher_->getStatusString()));
 
     auto info = switcher_->getCurrentBitrate();
     if (info.isOnline) {
