@@ -1,4 +1,5 @@
 #include "twitch-pubsub.hpp"
+#include "switcher.hpp"
 #include <obs-module.h>
 #include <obs-frontend-api.h>
 
@@ -32,7 +33,7 @@ static void queueRaidCallback(TwitchPubSubClient::RaidCallback cb,
 		OBS_TASK_UI,
 		[](void *vp) {
 			auto *pack = static_cast<RaidPack *>(vp);
-			if (pack->cb)
+			if (g_pluginAlive && pack->cb)
 				pack->cb(pack->login, pack->display);
 			delete pack;
 		},
@@ -76,9 +77,12 @@ void TwitchPubSubClient::start()
 void TwitchPubSubClient::stop()
 {
 	running_ = false;
-	ws_.disconnect();
+	// let the worker notice running_ via its 1s recv timeout and exit
+	// before we tear down the socket -- libcurl is not safe against
+	// freeing the easy handle while another thread is in curl_ws_recv
 	if (worker_.joinable())
 		worker_.join();
+	ws_.disconnect();
 	connected_ = false;
 }
 
@@ -195,13 +199,18 @@ void TwitchPubSubClient::workerMain()
 
 		if (msgType == QLatin1String("RESPONSE")) {
 			QString error = o.value(QLatin1String("error")).toString();
-			if (!error.isEmpty())
+			if (!error.isEmpty()) {
 				blog(LOG_WARNING,
-				     "[BitrateSceneSwitch] PubSub LISTEN error: %s",
+				     "[BitrateSceneSwitch] PubSub LISTEN error: %s (giving up, fix config and reconnect)",
 				     error.toUtf8().constData());
-			else
-				blog(LOG_INFO,
-				     "[BitrateSceneSwitch] PubSub LISTEN acknowledged");
+				// don't burn cycles retrying a known-bad topic;
+				// the switcher backoff will not restart us
+				// because pubsubWasConnected_ stays false here.
+				running_ = false;
+				break;
+			}
+			blog(LOG_INFO,
+			     "[BitrateSceneSwitch] PubSub LISTEN acknowledged");
 			continue;
 		}
 

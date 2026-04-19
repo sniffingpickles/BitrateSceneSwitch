@@ -1,4 +1,5 @@
 #include "chat-client.hpp"
+#include "switcher.hpp"
 #include <obs-module.h>
 #include <obs-frontend-api.h>
 #include <algorithm>
@@ -10,6 +11,11 @@ namespace BitrateSwitch {
 struct RoomIdPack {
     std::function<void(const std::string &)> fn;
     std::string id;
+};
+
+struct ChatCmdPack {
+    std::function<void(const ChatMessage &)> fn;
+    ChatMessage msg;
 };
 
 // winsock init is handled by curl_global_init in plugin-main,
@@ -94,6 +100,8 @@ bool ChatClient::connect()
     
     connected_ = true;
     running_ = true;
+    lastTrafficTime_ = std::chrono::steady_clock::now();
+    lastPingSent_ = lastTrafficTime_;
     receiveThread_ = std::thread(&ChatClient::receiveLoop, this);
     
     blog(LOG_INFO, "[BitrateSceneSwitch] Chat: Connected to Twitch channel #%s", config_.channel.c_str());
@@ -134,32 +142,70 @@ void ChatClient::receiveLoop()
 {
     char buffer[4096];
     std::string pending;
-    
+
     while (running_) {
         int received = recv(socket_, buffer, sizeof(buffer) - 1, 0);
-        if (received <= 0) {
+        if (received > 0) {
+            lastTrafficTime_ = std::chrono::steady_clock::now();
+            buffer[received] = '\0';
+            pending += buffer;
+
+            // bounded so a malformed peer can't OOM us over weeks of uptime
+            if (pending.size() > 65536) {
+                blog(LOG_WARNING,
+                     "[BitrateSceneSwitch] Chat: pending buffer overrun, resetting");
+                pending.clear();
+            }
+
+            size_t pos;
+            while ((pos = pending.find("\r\n")) != std::string::npos) {
+                std::string line = pending.substr(0, pos);
+                pending = pending.substr(pos + 2);
+                handleMessage(line);
+            }
+        } else if (received == 0) {
+            blog(LOG_WARNING, "[BitrateSceneSwitch] Chat: Connection closed by peer");
+            connected_ = false;
+            break;
+        } else {
             if (!running_)
                 break;
 #ifdef _WIN32
-            if (WSAGetLastError() == WSAETIMEDOUT)
-                continue;
+            int e = WSAGetLastError();
+            if (e != WSAETIMEDOUT) {
+                blog(LOG_WARNING,
+                     "[BitrateSceneSwitch] Chat: recv error %d", e);
+                connected_ = false;
+                break;
+            }
 #else
-            if (errno == EAGAIN || errno == EWOULDBLOCK)
-                continue;
+            if (errno != EAGAIN && errno != EWOULDBLOCK) {
+                blog(LOG_WARNING,
+                     "[BitrateSceneSwitch] Chat: recv error %d", errno);
+                connected_ = false;
+                break;
+            }
 #endif
-            blog(LOG_WARNING, "[BitrateSceneSwitch] Chat: Connection lost");
+        }
+
+        // liveness check: twitch pings ~every 5min. if we've heard nothing
+        // for 6min we're talking to a dead socket and need to reconnect.
+        // proactively send our own PING at 4min so a dead send surfaces fast.
+        auto now = std::chrono::steady_clock::now();
+        auto silentSec = std::chrono::duration_cast<std::chrono::seconds>(
+            now - lastTrafficTime_).count();
+        if (silentSec >= LIVENESS_TIMEOUT_SEC) {
+            blog(LOG_WARNING,
+                 "[BitrateSceneSwitch] Chat: no traffic for %llds, declaring dead",
+                 (long long)silentSec);
             connected_ = false;
             break;
         }
-        
-        buffer[received] = '\0';
-        pending += buffer;
-        
-        size_t pos;
-        while ((pos = pending.find("\r\n")) != std::string::npos) {
-            std::string line = pending.substr(0, pos);
-            pending = pending.substr(pos + 2);
-            handleMessage(line);
+        auto sincePing = std::chrono::duration_cast<std::chrono::seconds>(
+            now - lastPingSent_).count();
+        if (sincePing >= PROACTIVE_PING_SEC) {
+            sendRaw("PING :tmi.twitch.tv\r\n");
+            lastPingSent_ = now;
         }
     }
 }
@@ -189,7 +235,8 @@ void ChatClient::extractRoomIdFromTags(const std::string &raw)
                     OBS_TASK_UI,
                     [](void *vp) {
                         auto *pack = static_cast<RoomIdPack *>(vp);
-                        pack->fn(pack->id);
+                        if (g_pluginAlive && pack->fn)
+                            pack->fn(pack->id);
                         delete pack;
                     },
                     p,
@@ -220,7 +267,18 @@ void ChatClient::handleMessage(const std::string& raw)
             return;
         
         if (callback_) {
-            callback_(msg);
+            // bounce to the UI thread so handlers can safely touch
+            // OBS frontend APIs without racing the graphics thread
+            auto *p = new ChatCmdPack{callback_, std::move(msg)};
+            obs_queue_task(
+                OBS_TASK_UI,
+                [](void *vp) {
+                    auto *pack = static_cast<ChatCmdPack *>(vp);
+                    if (g_pluginAlive && pack->fn)
+                        pack->fn(pack->msg);
+                    delete pack;
+                },
+                p, false);
         }
     }
 }

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "config.hpp"
+#include <chrono>
 #include <string>
 #include <functional>
 #include <thread>
@@ -87,8 +88,15 @@ private:
     std::atomic<bool> connected_{false};
     std::mutex sendMutex_;
     
+    std::chrono::steady_clock::time_point lastTrafficTime_;
+    std::chrono::steady_clock::time_point lastPingSent_;
+
     static constexpr const char* TWITCH_IRC_HOST = "irc.chat.twitch.tv";
     static constexpr int TWITCH_IRC_PORT = 6667;
+    // twitch sends server PING ~5min; declare dead at 6min of silence
+    static constexpr int LIVENESS_TIMEOUT_SEC = 360;
+    // proactively ping every 4min so a dead socket fails the send
+    static constexpr int PROACTIVE_PING_SEC = 240;
 };
 
 } // namespace BitrateSwitch

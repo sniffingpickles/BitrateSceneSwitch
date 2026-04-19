@@ -59,6 +59,11 @@ bool WsClient::connect(const std::string &url)
 	if (!session_)
 		return false;
 
+	// resolve/connect/send capped at 5s so a dead route can't wedge the
+	// worker thread (and therefore plugin shutdown). receive stays at
+	// 1s so the worker can poll running_ between recv calls.
+	WinHttpSetTimeouts(session_, 5000, 5000, 5000, 1000);
+
 	DWORD recvTimeout = 1000;
 	WinHttpSetOption(session_, WINHTTP_OPTION_RECEIVE_TIMEOUT,
 			 &recvTimeout, sizeof(recvTimeout));
@@ -211,6 +216,12 @@ bool WsClient::connect(const std::string &url)
 
 	curl_easy_setopt(curl_, CURLOPT_URL, url.c_str());
 	curl_easy_setopt(curl_, CURLOPT_CONNECT_ONLY, 2L);
+	// bound the connect handshake so a dead route can't wedge us for
+	// libcurl's default 5min connect timeout. these only apply during
+	// curl_easy_perform; once we switch to ws send/recv they no longer
+	// gate the long-running session.
+	curl_easy_setopt(curl_, CURLOPT_CONNECTTIMEOUT_MS, 5000L);
+	curl_easy_setopt(curl_, CURLOPT_TIMEOUT_MS, 10000L);
 
 	CURLcode res = curl_easy_perform(curl_);
 	if (res != CURLE_OK) {

@@ -1,4 +1,5 @@
 #include "kick-chat.hpp"
+#include "switcher.hpp"
 #include <obs-module.h>
 #include <obs-frontend-api.h>
 
@@ -49,7 +50,7 @@ static void queueChatCommand(KickChatClient::CommandCallback cb,
 		OBS_TASK_UI,
 		[](void *vp) {
 			auto *pack = static_cast<KickUiCmd *>(vp);
-			if (pack->cb)
+			if (g_pluginAlive && pack->cb)
 				pack->cb(pack->msg);
 			delete pack;
 		},
@@ -65,7 +66,7 @@ static void queueRaid(KickChatClient::RaidCallback cb, std::string slug,
 		OBS_TASK_UI,
 		[](void *vp) {
 			auto *pack = static_cast<KickUiRaid *>(vp);
-			if (pack->cb)
+			if (g_pluginAlive && pack->cb)
 				pack->cb(pack->targetSlug,
 					 pack->displayName);
 			delete pack;
@@ -230,24 +231,38 @@ void KickChatClient::workerMain()
 	blog(LOG_INFO, "[BitrateSceneSwitch] Kick: subscribed");
 
 	auto lastPing = std::chrono::steady_clock::now();
+	auto lastTraffic = lastPing;
+	// pusher servers ping ~every 30s; declare dead at 90s of silence
+	constexpr int kLivenessSec = 90;
+	constexpr int kClientPingSec = 60;
 
 	while (running_) {
 		std::string msg;
 		auto result = ws_.recv(msg);
 
 		if (result == WsClient::RecvResult::Message) {
+			lastTraffic = std::chrono::steady_clock::now();
 			dispatchText(msg);
 		} else if (result == WsClient::RecvResult::Timeout) {
-			auto elapsed =
-				std::chrono::duration_cast<
-					std::chrono::seconds>(
-					std::chrono::steady_clock::now() -
-					lastPing)
-					.count();
-			if (elapsed >= 120) {
+			auto now = std::chrono::steady_clock::now();
+			auto silent = std::chrono::duration_cast<
+					     std::chrono::seconds>(
+					     now - lastTraffic)
+					     .count();
+			if (silent >= kLivenessSec) {
+				blog(LOG_WARNING,
+				     "[BitrateSceneSwitch] Kick: no traffic for %llds, declaring dead",
+				     (long long)silent);
+				break;
+			}
+			auto sincePing = std::chrono::duration_cast<
+						std::chrono::seconds>(
+						now - lastPing)
+						.count();
+			if (sincePing >= kClientPingSec) {
 				ws_.send("{\"event\":\"pusher:ping\","
 					 "\"data\":{}}");
-				lastPing = std::chrono::steady_clock::now();
+				lastPing = now;
 			}
 		} else {
 			break;
@@ -276,9 +291,11 @@ bool KickChatClient::connect()
 void KickChatClient::disconnect()
 {
 	running_ = false;
-	ws_.disconnect();
+	// worker exits within ~1s via the recv poll timeout; join first so
+	// libcurl's easy handle isn't freed out from under curl_ws_recv
 	if (worker_.joinable())
 		worker_.join();
+	ws_.disconnect();
 }
 
 bool KickChatClient::isConnected() const

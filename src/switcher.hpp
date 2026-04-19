@@ -17,6 +17,10 @@
 
 namespace BitrateSwitch {
 
+// Set false during plugin shutdown so chat-thread trampolines bouncing
+// through obs_queue_task can no-op instead of touching a destroyed Switcher.
+extern std::atomic<bool> g_pluginAlive;
+
 enum class SwitchType {
     Normal,
     Low,
@@ -102,6 +106,8 @@ private:
     bool pubsubWasConnected_ = false;
     std::chrono::steady_clock::time_point chatNextReconnect_;
     int chatReconnectDelay_ = 0;
+    std::chrono::steady_clock::time_point pubsubNextRetry_;
+    int pubsubRetryDelay_ = 0;
     mutable std::mutex mutex_;
 
     SwitchType prevSwitchType_ = SwitchType::Offline;

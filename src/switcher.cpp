@@ -9,6 +9,8 @@
 
 namespace BitrateSwitch {
 
+std::atomic<bool> g_pluginAlive{true};
+
 Switcher::Switcher(Config *config)
     : config_(config)
     , sameTypeStart_(std::chrono::steady_clock::now())
@@ -50,6 +52,9 @@ void Switcher::start()
 
 void Switcher::stop()
 {
+    // tell trampolines queued from chat workers to no-op rather than
+    // dereference us mid-shutdown. set BEFORE joining anything.
+    g_pluginAlive = false;
     running_ = false;
     disconnectChat();
     if (switcherThread_.joinable())
@@ -137,7 +142,13 @@ void Switcher::switcherThread()
         // settings dialog asked us to reconnect, do it immediately
         if (chatReconnectRequested_.exchange(false)) {
             chatReconnectDelay_ = 0;
-            if (config_->chat.enabled)
+            bool wantChat;
+            {
+                config_->lockRead();
+                wantChat = config_->chat.enabled;
+                config_->unlockRead();
+            }
+            if (wantChat)
                 connectChat();
             else
                 disconnectChat();
@@ -155,30 +166,58 @@ void Switcher::switcherThread()
                 chatConnected = twitchChat_->isConnected();
 
             // Reconnect PubSub if it was connected but dropped,
-            // without tearing down the healthy IRC connection.
-            if (twitchPubSub_ && !twitchPubSub_->isConnected() &&
-                pubsubWasConnected_) {
-                blog(LOG_INFO,
-                     "[BitrateSceneSwitch] PubSub dropped, reconnecting...");
-                twitchPubSub_->stop();
-                twitchPubSub_->start();
-                pubsubWasConnected_ = false;
-            } else if (twitchPubSub_ && twitchPubSub_->isConnected()) {
+            // without tearing down the healthy IRC connection. Use
+            // backoff so a flaky network doesn't spam reconnects.
+            if (twitchPubSub_ && twitchPubSub_->isConnected()) {
                 pubsubWasConnected_ = true;
+                pubsubRetryDelay_ = 0;
+            } else if (twitchPubSub_ && !twitchPubSub_->isConnected() &&
+                       pubsubWasConnected_) {
+                auto now = std::chrono::steady_clock::now();
+                if (now >= pubsubNextRetry_) {
+                    blog(LOG_INFO,
+                         "[BitrateSceneSwitch] PubSub dropped, reconnecting (next retry %ds)...",
+                         pubsubRetryDelay_);
+                    twitchPubSub_->stop();
+                    twitchPubSub_->start();
+                    pubsubWasConnected_ = false;
+                    if (pubsubRetryDelay_ == 0)
+                        pubsubRetryDelay_ = 5;
+                    else if (pubsubRetryDelay_ < 60)
+                        pubsubRetryDelay_ = (std::min)(pubsubRetryDelay_ * 2, 60);
+                    pubsubNextRetry_ = now + std::chrono::seconds(pubsubRetryDelay_);
+                }
             }
         }
 
         if (config_->chat.enabled && !chatConnected) {
-            auto now = std::chrono::steady_clock::now();
-            if (now >= chatNextReconnect_) {
-                blog(LOG_INFO, "[BitrateSceneSwitch] Chat dropped, retrying in %ds...",
-                     chatReconnectDelay_);
-                connectChat();
-                if (chatReconnectDelay_ == 0)
-                    chatReconnectDelay_ = 5;
-                else if (chatReconnectDelay_ < 60)
-                    chatReconnectDelay_ = (std::min)(chatReconnectDelay_ * 2, 60);
-                chatNextReconnect_ = now + std::chrono::seconds(chatReconnectDelay_);
+            // skip retries if the user hasn't filled in the required
+            // credentials -- prevents a 60s spam loop on a config gap
+            bool hasCreds = false;
+            {
+                config_->lockRead();
+                if (config_->chat.platform == ChatPlatform::Kick) {
+                    hasCreds = !config_->chat.channel.empty() &&
+                               config_->chat.kickChannelId != 0 &&
+                               config_->chat.kickChatroomId != 0;
+                } else {
+                    hasCreds = !config_->chat.channel.empty() &&
+                               !config_->chat.oauthToken.empty();
+                }
+                config_->unlockRead();
+            }
+            if (hasCreds) {
+                auto now = std::chrono::steady_clock::now();
+                if (now >= chatNextReconnect_) {
+                    blog(LOG_INFO, "[BitrateSceneSwitch] Chat dropped, retrying in %ds...",
+                         chatReconnectDelay_);
+                    connectChat();
+                    if (chatReconnectDelay_ == 0)
+                        chatReconnectDelay_ = 5;
+                    else if (chatReconnectDelay_ < 60)
+                        chatReconnectDelay_ = (std::min)(chatReconnectDelay_ * 2, 60);
+                    chatNextReconnect_ = now + std::chrono::seconds(chatReconnectDelay_);
+                }
             }
         } else if (config_->chat.enabled && chatConnected) {
             chatReconnectDelay_ = 0;
@@ -767,8 +806,21 @@ bool Switcher::switchToSceneByName(const std::string &name)
 
 void Switcher::connectChat()
 {
-    if (!config_->chat.enabled)
-        return;
+    // snapshot the chat config under the read lock so writers (settings
+    // dialog / websocket vendor) can't mutate strings out from under us
+    // while we're constructing the chat clients
+    ChatConfig chatCfg;
+    bool wantPubSub = false;
+    {
+        config_->lockRead();
+        if (!config_->chat.enabled) {
+            config_->unlockRead();
+            return;
+        }
+        chatCfg = config_->chat;
+        wantPubSub = config_->chat.autoStopStreamOnRaid;
+        config_->unlockRead();
+    }
 
     std::lock_guard<std::mutex> lock(chatMutex_);
 
@@ -779,10 +831,11 @@ void Switcher::connectChat()
     twitchChat_.reset();
     kickChat_.reset();
     pubsubWasConnected_ = false;
+    pubsubRetryDelay_ = 0;
 
-    if (config_->chat.platform == ChatPlatform::Kick) {
+    if (chatCfg.platform == ChatPlatform::Kick) {
         kickChat_ = std::make_unique<KickChatClient>();
-        kickChat_->setConfig(config_->chat);
+        kickChat_->setConfig(chatCfg);
         kickChat_->setCommandCallback([this](const ChatMessage &msg) {
             handleChatCommand(msg);
         });
@@ -798,9 +851,9 @@ void Switcher::connectChat()
     twitchChat_->setCommandCallback([this](const ChatMessage &msg) {
         handleChatCommand(msg);
     });
-    twitchChat_->setConfig(config_->chat);
+    twitchChat_->setConfig(chatCfg);
 
-    if (config_->chat.autoStopStreamOnRaid) {
+    if (wantPubSub) {
         twitchPubSub_ = std::make_unique<TwitchPubSubClient>();
         twitchPubSub_->setRaidCallback([this](const std::string &login, const std::string &disp) {
             handleRaidStop(login, disp);
