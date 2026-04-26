@@ -416,7 +416,7 @@ jobs:
           name: ${{ env.PLUGIN_NAME }}-windows-arm64
           path: release/
 
-  # ================= Linux x86_64 build (fixed with jansson) =================
+  # ================= Linux x86_64 build (all deps included) =================
   build-linux-x64:
     name: Build for Linux x86_64
     runs-on: ubuntu-latest
@@ -437,7 +437,9 @@ jobs:
             libxcb-shm0-dev libxcb-xfixes0-dev libxcb-xinerama0-dev \
             libavcodec-dev libavformat-dev libavutil-dev libswscale-dev libswresample-dev \
             uthash-dev \
-            libjansson-dev
+            libjansson-dev \
+            libx11-xcb-dev libxcb-x11-dev libxcb-util-dev libxcb-keysyms1-dev libxcb-composite0-dev \
+            libxkbcommon-x11-dev
 
       - name: Install Qt
         uses: jurplel/install-qt-action@v3
