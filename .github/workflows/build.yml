@@ -416,8 +416,8 @@ jobs:
           name: ${{ env.PLUGIN_NAME }}-windows-arm64
           path: release/
 
-  # ================= Linux x86_64 build =================
-    build-linux-x64:
+  # ================= Linux x86_64 build (fixed) =================
+  build-linux-x64:
     name: Build for Linux x86_64
     runs-on: ubuntu-latest
     steps:
