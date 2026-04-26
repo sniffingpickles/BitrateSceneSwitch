@@ -438,7 +438,7 @@ jobs:
             libavcodec-dev libavformat-dev libavutil-dev libswscale-dev libswresample-dev \
             uthash-dev \
             libjansson-dev \
-            libx11-xcb-dev libxcb-x11-dev libxcb-util-dev libxcb-keysyms1-dev libxcb-composite0-dev \
+            libx11-xcb-dev \
             libxkbcommon-x11-dev
 
       - name: Install Qt
