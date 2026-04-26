@@ -417,7 +417,7 @@ jobs:
           path: release/
 
   # ================= Linux x86_64 build =================
-  build-linux-x64:
+    build-linux-x64:
     name: Build for Linux x86_64
     runs-on: ubuntu-latest
     steps:
@@ -435,7 +435,8 @@ jobs:
             libdbus-1-dev libudev-dev libfontconfig1-dev libfreetype6-dev \
             libxkbcommon-dev libwayland-dev libpipewire-0.3-dev \
             libxcb-shm0-dev libxcb-xfixes0-dev libxcb-xinerama0-dev \
-            libavcodec-dev libavformat-dev libavutil-dev libswscale-dev libswresample-dev
+            libavcodec-dev libavformat-dev libavutil-dev libswscale-dev libswresample-dev \
+            uthash-dev
 
       - name: Install Qt
         uses: jurplel/install-qt-action@v3
