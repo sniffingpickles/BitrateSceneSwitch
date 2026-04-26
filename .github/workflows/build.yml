@@ -416,7 +416,7 @@ jobs:
           name: ${{ env.PLUGIN_NAME }}-windows-arm64
           path: release/
 
-  # ================= NEW: Linux x86_64 build =================
+  # ================= Linux x86_64 build =================
   build-linux-x64:
     name: Build for Linux x86_64
     runs-on: ubuntu-latest
@@ -434,7 +434,8 @@ jobs:
             libgl1-mesa-dev libpulse-dev libjack-dev libv4l-dev libasound2-dev \
             libdbus-1-dev libudev-dev libfontconfig1-dev libfreetype6-dev \
             libxkbcommon-dev libwayland-dev libpipewire-0.3-dev \
-            libxcb-shm0-dev libxcb-xfixes0-dev libxcb-xinerama0-dev
+            libxcb-shm0-dev libxcb-xfixes0-dev libxcb-xinerama0-dev \
+            libavcodec-dev libavformat-dev libavutil-dev libswscale-dev libswresample-dev
 
       - name: Install Qt
         uses: jurplel/install-qt-action@v3
@@ -523,7 +524,7 @@ jobs:
           name: ${{ env.PLUGIN_NAME }}-linux-x86_64
           path: ${{ env.PLUGIN_NAME }}-*.tar.gz
 
-  # ================= Release job (updated) =================
+  # ================= Release job =================
   release:
     name: Create Release
     needs: [build-windows-x64, build-windows-arm64, build-linux-x64]
