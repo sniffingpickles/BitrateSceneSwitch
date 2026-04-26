@@ -416,7 +416,7 @@ jobs:
           name: ${{ env.PLUGIN_NAME }}-windows-arm64
           path: release/
 
-  # ================= Linux x86_64 build (fixed dependencies) =================
+  # ================= Linux x86_64 build =================
   build-linux-x64:
     name: Build for Linux x86_64
     runs-on: ubuntu-latest
@@ -502,16 +502,13 @@ jobs:
           mkdir -p release/obs-plugins/64bit
           mkdir -p release/data/obs-plugins/${{ env.PLUGIN_NAME }}
           
-          # Copy shared library (libBitrateSceneSwitch.so)
           SO_PATH="build-plugin/lib${{ env.PLUGIN_NAME }}.so"
           if [ -f "$SO_PATH" ]; then
             cp "$SO_PATH" release/obs-plugins/64bit/
           else
-            echo "Shared library not found, searching..."
             find build-plugin -name "*.so" -exec cp {} release/obs-plugins/64bit/ \;
           fi
           
-          # Copy data files if any
           if [ -d "data" ]; then
             cp -r data/* release/data/obs-plugins/${{ env.PLUGIN_NAME }}/
           fi
@@ -528,7 +525,7 @@ jobs:
           name: ${{ env.PLUGIN_NAME }}-linux-x86_64
           path: ${{ env.PLUGIN_NAME }}-*.tar.gz
 
-  # ================= Release job (unchanged, copies tarball as-is) =================
+  # ================= Release job (original, unchanged) =================
   release:
     name: Create Release
     needs: [build-windows-x64, build-windows-arm64, build-linux-x64]
