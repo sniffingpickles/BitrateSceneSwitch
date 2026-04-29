@@ -1,6 +1,8 @@
 #pragma once
 
 #include "../stream-server.hpp"
+#include "../http-client.hpp"
+#include <string>
 
 namespace BitrateSwitch {
 
@@ -14,7 +16,18 @@ public:
     std::string getSourceInfo() override;
 
 private:
+    // Unified entry point – decides between HTTP and WebSocket
     BitrateInfo fetchStats();
+
+    // Original HTTP implementation
+    BitrateInfo fetchStatsHttp();
+    // New WebSocket implementation
+    BitrateInfo fetchStatsWs();
+
+    std::string statsUrl_;
+    std::string name_;
+    std::vector<std::string> overrideScenes_;
+    HttpClient httpClient_;     // <-- must be here
 };
 
 } // namespace BitrateSwitch
