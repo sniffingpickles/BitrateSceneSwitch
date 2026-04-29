@@ -1,5 +1,7 @@
 #include "rist.hpp"
 #include "../switcher.hpp"
+#include "ws-client.hpp"
+#include "../http-client.hpp"
 #include <cmath>
 #include <functional>
 #include <obs-module.h>
@@ -53,7 +55,6 @@ std::string extractNestedObject(const std::string &json, const std::string &key)
     return json.substr(bracePos, endPos - bracePos);
 }
 
-// Extract a JSON array (returns content including brackets)
 std::string extractJsonArray(const std::string &json, const std::string &key)
 {
     std::string searchKey = "\"" + key + "\"";
@@ -74,7 +75,6 @@ std::string extractJsonArray(const std::string &json, const std::string &key)
     return json.substr(bracketPos, endPos - bracketPos);
 }
 
-// Iterate over objects in a JSON array, calling fn for each object body
 void forEachObjectInArray(const std::string &arrayJson,
                           const std::function<void(const std::string &)> &fn)
 {
@@ -110,14 +110,26 @@ RistServer::RistServer(const StreamServerConfig &config)
 
 BitrateInfo RistServer::fetchStats()
 {
+    // If the URL starts with "ws://" or "wss://", use WebSocket
+    if (statsUrl_.compare(0, 5, "ws://")  == 0 ||
+        statsUrl_.compare(0, 6, "wss://") == 0)
+    {
+        return fetchStatsWs();
+    }
+
+    // Otherwise fall back to the original HTTP request
+    return fetchStatsHttp();
+}
+
+// --- original HTTP implementation (unchanged from initial code) ---
+BitrateInfo RistServer::fetchStatsHttp()
+{
     BitrateInfo info;
     info.serverName = name_;
 
     HttpResponse response = httpClient_.get(statsUrl_);
     if (!response.success) return info;
 
-    // RIST JSON format:
-    // { "receiver-stats": { "flowinstant": { "peers": [ { "stats": { "rtt": ..., "bitrate": ... } }, ... ] } } }
     std::string receiverStats = extractNestedObject(response.body, "receiver-stats");
     if (receiverStats.empty()) return info;
 
@@ -127,7 +139,6 @@ BitrateInfo RistServer::fetchStats()
     std::string peersArray = extractJsonArray(flowinstant, "peers");
     if (peersArray.empty()) return info;
 
-    // Sum bitrate across all peers, average RTT
     int64_t totalBitrate = 0;
     double totalRtt = 0.0;
     int peerCount = 0;
@@ -140,21 +151,94 @@ BitrateInfo RistServer::fetchStats()
         std::string rttStr = extractJsonValue(statsObj, "rtt");
 
         try {
-            if (!bitrateStr.empty()) {
+            if (!bitrateStr.empty())
                 totalBitrate += std::stoll(bitrateStr);
-            }
-            if (!rttStr.empty()) {
+            if (!rttStr.empty())
                 totalRtt += std::stod(rttStr);
-            }
         } catch (...) {
-            return;  // Skip this peer on parse error
+            return;
         }
         peerCount++;
     });
 
     if (peerCount == 0) return info;
 
-    // Bitrate from RIST is in bits/s, convert to kbps
+    info.bitrateKbps = totalBitrate / 1024;
+    info.rttMs = totalRtt / peerCount;
+    info.isOnline = info.bitrateKbps > 0;
+
+    return info;
+}
+
+// --- WebSocket implementation ---
+BitrateInfo RistServer::fetchStatsWs()
+{
+    BitrateInfo info;
+    info.serverName = name_;
+
+    // 1. Open WebSocket connection
+    WsClient ws;
+    if (!ws.connect(statsUrl_))
+        return info;
+
+    // 2. Send the same handshake the browser uses
+    ws.send("Connection Established");
+
+    // 3. Wait for the first complete JSON message (server pushes immediately)
+    std::string message;
+    for (int retries = 0; retries < 20; ++retries) {
+        std::string chunk;
+        WsClient::RecvResult res = ws.recv(chunk);
+        if (res == WsClient::RecvResult::Message) {
+            message += chunk;
+            break;
+        } else if (res == WsClient::RecvResult::Error ||
+                   res == WsClient::RecvResult::Closed) {
+            break;
+        }
+        // Timeout → try again
+    }
+
+    ws.disconnect();
+
+    if (message.empty())
+        return info;
+
+    // 4. Parse JSON – same structure as HTTP response body
+    std::string receiverStats = extractNestedObject(message, "receiver-stats");
+    if (receiverStats.empty()) return info;
+
+    std::string flowinstant = extractNestedObject(receiverStats, "flowinstant");
+    if (flowinstant.empty()) return info;
+
+    std::string peersArray = extractJsonArray(flowinstant, "peers");
+    if (peersArray.empty()) return info;
+
+    int64_t totalBitrate = 0;
+    double totalRtt = 0.0;
+    int peerCount = 0;
+
+    forEachObjectInArray(peersArray, [&](const std::string &peerObj) {
+        std::string statsObj = extractNestedObject(peerObj, "stats");
+        if (statsObj.empty()) return;
+
+        std::string bitrateStr = extractJsonValue(statsObj, "bitrate");
+        std::string rttStr = extractJsonValue(statsObj, "rtt");
+
+        try {
+            if (!bitrateStr.empty())
+                totalBitrate += std::stoll(bitrateStr);
+            if (!rttStr.empty())
+                totalRtt += std::stod(rttStr);
+        } catch (...) {
+            return;
+        }
+        peerCount++;
+    });
+
+    if (peerCount == 0)
+        return info;
+
     info.bitrateKbps = totalBitrate / 1024;
     info.rttMs = totalRtt / peerCount;
     info.isOnline = info.bitrateKbps > 0;
@@ -181,7 +265,8 @@ BitrateInfo RistServer::getBitrate()
 std::string RistServer::getSourceInfo()
 {
     BitrateInfo info = fetchStats();
-    if (!info.isOnline) return "Offline";
+    if (!info.isOnline)
+        return "Offline";
 
     return std::to_string(info.bitrateKbps) + " Kbps, " +
            std::to_string(static_cast<int>(std::round(info.rttMs))) + " ms";
