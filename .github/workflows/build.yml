@@ -416,9 +416,119 @@ jobs:
           name: ${{ env.PLUGIN_NAME }}-windows-arm64
           path: release/
 
+  # ================= Linux x86_64 build =================
+  build-linux-x64:
+    name: Build for Linux x86_64
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential cmake ninja-build pkg-config \
+            libcurl4-openssl-dev \
+            libx11-dev libxcomposite-dev libxinerama-dev libxrandr-dev \
+            libgl1-mesa-dev libpulse-dev libjack-dev libv4l-dev libasound2-dev \
+            libdbus-1-dev libudev-dev libfontconfig1-dev libfreetype6-dev \
+            libxkbcommon-dev libwayland-dev libpipewire-0.3-dev \
+            libxcb-shm0-dev libxcb-xfixes0-dev libxcb-xinerama0-dev \
+            libavcodec-dev libavformat-dev libavutil-dev libswscale-dev libswresample-dev \
+            uthash-dev \
+            libjansson-dev \
+            libx11-xcb-dev \
+            libxkbcommon-x11-dev
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v3
+        with:
+          version: '6.7.2'
+          host: 'linux'
+          target: 'desktop'
+          arch: 'linux_gcc_64'
+          cache: true
+
+      - name: Cache OBS Studio source
+        id: cache-obs
+        uses: actions/cache@v4
+        with:
+          path: obs-studio
+          key: obs-studio-linux-${{ hashFiles('.github/workflows/build.yml') }}
+
+      - name: Clone OBS Studio
+        if: steps.cache-obs.outputs.cache-hit != 'true'
+        run: |
+          git clone --depth 1 --branch 31.0.0 https://github.com/obsproject/obs-studio.git obs-studio
+          cd obs-studio
+          git submodule update --init --recursive --depth 1
+
+      - name: Cache OBS build
+        id: cache-obs-build
+        uses: actions/cache@v4
+        with:
+          path: obs-studio/build
+          key: obs-build-linux-${{ hashFiles('obs-studio/CMakeLists.txt') }}
+
+      - name: Build OBS libraries
+        if: steps.cache-obs-build.outputs.cache-hit != 'true'
+        run: |
+          cd obs-studio
+          cmake -B build -S . -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DENABLE_BROWSER=OFF \
+            -DENABLE_SCRIPTING=OFF \
+            -DENABLE_UI=ON \
+            -DENABLE_PLUGINS=OFF \
+            -DENABLE_VIRTUALCAM=OFF \
+            -DENABLE_ALSA=ON \
+            -DENABLE_PULSEAUDIO=ON
+          cmake --build build --target libobs obs-frontend-api
+
+      - name: Configure Plugin
+        run: |
+          cmake -B build-plugin -S . -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_PREFIX_PATH="${{ env.Qt6_DIR }}" \
+            -Dlibobs_DIR="${{ github.workspace }}/obs-studio/build/libobs" \
+            -Dobs-frontend-api_DIR="${{ github.workspace }}/obs-studio/build/UI/obs-frontend-api"
+
+      - name: Build Plugin
+        run: cmake --build build-plugin
+
+      - name: Package
+        run: |
+          mkdir -p release/obs-plugins/64bit
+          mkdir -p release/data/obs-plugins/${{ env.PLUGIN_NAME }}
+          
+          SO_PATH="build-plugin/lib${{ env.PLUGIN_NAME }}.so"
+          if [ -f "$SO_PATH" ]; then
+            cp "$SO_PATH" release/obs-plugins/64bit/
+          else
+            find build-plugin -name "*.so" -exec cp {} release/obs-plugins/64bit/ \;
+          fi
+          
+          if [ -d "data" ]; then
+            cp -r data/* release/data/obs-plugins/${{ env.PLUGIN_NAME }}/
+          fi
+
+      - name: Create tarball
+        run: |
+          VERSION=$(grep -Po '(?<=project\(.+ VERSION )([0-9.]+)' CMakeLists.txt || echo "0.0.0")
+          tar -czf ${{ env.PLUGIN_NAME }}-${VERSION}-linux-x86_64.tar.gz -C release .
+          echo "VERSION=${VERSION}" >> $GITHUB_ENV
+
+      - name: Upload Artifact (Linux tarball)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.PLUGIN_NAME }}-linux-x86_64
+          path: ${{ env.PLUGIN_NAME }}-*.tar.gz
+
+  # ================= Release job (original, unchanged) =================
   release:
     name: Create Release
-    needs: [build-windows-x64, build-windows-arm64]
+    needs: [build-windows-x64, build-windows-arm64, build-linux-x64]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
     permissions:
@@ -428,26 +538,36 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: artifacts
+
       - name: Create Release Archives
         run: |
           mkdir -p release_archives
+          # Windows x64
           if [ -d "artifacts/${{ env.PLUGIN_NAME }}-windows-x64" ]; then
             cd artifacts/${{ env.PLUGIN_NAME }}-windows-x64 && zip -r ../../release_archives/${{ env.PLUGIN_NAME }}-${{ github.ref_name }}-windows-x64.zip . && cd ../..
           fi
+          # Windows ARM64
           if [ -d "artifacts/${{ env.PLUGIN_NAME }}-windows-arm64" ]; then
             cd artifacts/${{ env.PLUGIN_NAME }}-windows-arm64 && zip -r ../../release_archives/${{ env.PLUGIN_NAME }}-${{ github.ref_name }}-windows-arm64.zip . && cd ../..
           fi
-      - name: Stage Installer
+          # Linux x86_64 (tarball already exists, just copy it)
+          if [ -d "artifacts/${{ env.PLUGIN_NAME }}-linux-x86_64" ]; then
+            cp artifacts/${{ env.PLUGIN_NAME }}-linux-x86_64/*.tar.gz release_archives/
+          fi
+
+      - name: Stage Installer (Windows)
         run: |
           if [ -d "artifacts/${{ env.PLUGIN_NAME }}-windows-x64-setup" ]; then
             cp artifacts/${{ env.PLUGIN_NAME }}-windows-x64-setup/*.exe .
           fi
+
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
             release_archives/${{ env.PLUGIN_NAME }}-${{ github.ref_name }}-windows-x64.zip
             release_archives/${{ env.PLUGIN_NAME }}-${{ github.ref_name }}-windows-arm64.zip
+            release_archives/${{ env.PLUGIN_NAME }}-*.tar.gz
             ${{ env.PLUGIN_NAME }}-*-setup.exe
           draft: false
           prerelease: false
