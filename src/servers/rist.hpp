@@ -1,7 +1,6 @@
 #pragma once
 
 #include "../stream-server.hpp"
-#include "../http-client.hpp"
 #include <string>
 
 namespace BitrateSwitch {
