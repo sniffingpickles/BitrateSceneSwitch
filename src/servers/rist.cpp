@@ -1,7 +1,6 @@
 #include "rist.hpp"
 #include "../switcher.hpp"
 #include "ws-client.hpp"
-#include "../http-client.hpp"
 #include <cmath>
 #include <functional>
 #include <obs-module.h>
@@ -28,7 +27,7 @@ std::string extractJsonValue(const std::string &json, const std::string &key)
 
     size_t valueEnd = json.find_first_of(",}\n\r]", valueStart);
     if (valueEnd == std::string::npos) valueEnd = json.length();
-    
+
     std::string value = json.substr(valueStart, valueEnd - valueStart);
     while (!value.empty() && (value.back() == ' ' || value.back() == '\t'))
         value.pop_back();
@@ -108,20 +107,7 @@ RistServer::RistServer(const StreamServerConfig &config)
     overrideScenes_ = config.overrideScenes;
 }
 
-BitrateInfo RistServer::fetchStats()
-{
-    // If the URL starts with "ws://" or "wss://", use WebSocket
-    if (statsUrl_.compare(0, 5, "ws://")  == 0 ||
-        statsUrl_.compare(0, 6, "wss://") == 0)
-    {
-        return fetchStatsWs();
-    }
-
-    // Otherwise fall back to the original HTTP request
-    return fetchStatsHttp();
-}
-
-// --- original HTTP implementation (unchanged from initial code) ---
+// ----------- HTTP implementation -----------
 BitrateInfo RistServer::fetchStatsHttp()
 {
     BitrateInfo info;
@@ -170,7 +156,7 @@ BitrateInfo RistServer::fetchStatsHttp()
     return info;
 }
 
-// --- WebSocket implementation ---
+// ----------- WebSocket implementation -----------
 BitrateInfo RistServer::fetchStatsWs()
 {
     BitrateInfo info;
@@ -244,6 +230,20 @@ BitrateInfo RistServer::fetchStatsWs()
     info.isOnline = info.bitrateKbps > 0;
 
     return info;
+}
+
+// ----------- Dispatcher -----------
+BitrateInfo RistServer::fetchStats()
+{
+    // WebSocket URLs start with ws:// or wss://
+    if (statsUrl_.compare(0, 5, "ws://")  == 0 ||
+        statsUrl_.compare(0, 6, "wss://") == 0)
+    {
+        return fetchStatsWs();
+    }
+
+    // Fallback to original HTTP behaviour
+    return fetchStatsHttp();
 }
 
 SwitchType RistServer::checkSwitch(const Triggers &triggers)
