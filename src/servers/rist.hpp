@@ -14,7 +14,18 @@ public:
     std::string getSourceInfo() override;
 
 private:
+    // Unified entry point – decides between HTTP and WebSocket
     BitrateInfo fetchStats();
+
+    // Original HTTP implementation
+    BitrateInfo fetchStatsHttp();
+    // New WebSocket implementation
+    BitrateInfo fetchStatsWs();
+
+    std::string statsUrl_;
+    std::string name_;
+    OverrideScenes overrideScenes_;   // <-- correct type
+    HttpClient httpClient_;
 };
 
 } // namespace BitrateSwitch
