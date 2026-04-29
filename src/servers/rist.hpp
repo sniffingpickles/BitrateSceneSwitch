@@ -26,8 +26,8 @@ private:
 
     std::string statsUrl_;
     std::string name_;
-    std::vector<std::string> overrideScenes_;
-    HttpClient httpClient_;     // <-- must be here
+    OverrideScenes overrideScenes_;   // <-- correct type
+    HttpClient httpClient_;
 };
 
 } // namespace BitrateSwitch
