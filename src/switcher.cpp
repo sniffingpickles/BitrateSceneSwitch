@@ -16,6 +16,8 @@ Switcher::Switcher(Config *config)
     , sameTypeStart_(std::chrono::steady_clock::now())
     , offlineStart_(std::chrono::steady_clock::now())
     , streamStartTime_(std::chrono::steady_clock::now())
+    , cachedStatusString_("Status: Not started")
+    , cachedBitrateString_("Bitrate: --")
 {
     prevScene_ = config_->scenes.normal;
     reloadServers();
@@ -52,8 +54,6 @@ void Switcher::start()
 
 void Switcher::stop()
 {
-    // tell trampolines queued from chat workers to no-op rather than
-    // dereference us mid-shutdown. set BEFORE joining anything.
     g_pluginAlive = false;
     running_ = false;
     disconnectChat();
@@ -73,14 +73,12 @@ void Switcher::onStreamingStarted()
     streamStartTime_ = std::chrono::steady_clock::now();
     blog(LOG_INFO, "[BitrateSceneSwitch] Streaming started");
 
-    // Handle optional: switch to starting scene on stream start
     if (config_->options.switchToStartingOnStreamStart && 
         !config_->optionalScenes.starting.empty()) {
         switchToScene(config_->optionalScenes.starting);
         wasOnStartingScene_ = true;
     }
 
-    // Handle optional: auto-record while streaming
     if (config_->options.recordWhileStreaming && !isRecording_) {
         obs_frontend_recording_start();
     }
@@ -92,12 +90,10 @@ void Switcher::onStreamingStopped()
     wasOnStartingScene_ = false;
     blog(LOG_INFO, "[BitrateSceneSwitch] Streaming stopped");
 
-    // Stop recording if we started it
     if (config_->options.recordWhileStreaming && isRecording_) {
         obs_frontend_recording_stop();
     }
 
-    // Switch to ending scene if configured
     if (!config_->optionalScenes.ending.empty()) {
         switchToScene(config_->optionalScenes.ending);
     }
@@ -139,7 +135,6 @@ void Switcher::switcherThread()
         if (!running_)
             break;
 
-        // settings dialog asked us to reconnect, do it immediately
         if (chatReconnectRequested_.exchange(false)) {
             chatReconnectDelay_ = 0;
             bool wantChat;
@@ -165,9 +160,6 @@ void Switcher::switcherThread()
             else if (twitchChat_)
                 chatConnected = twitchChat_->isConnected();
 
-            // Reconnect PubSub if it was connected but dropped,
-            // without tearing down the healthy IRC connection. Use
-            // backoff so a flaky network doesn't spam reconnects.
             if (twitchPubSub_ && twitchPubSub_->isConnected()) {
                 pubsubWasConnected_ = true;
                 pubsubRetryDelay_ = 0;
@@ -191,8 +183,6 @@ void Switcher::switcherThread()
         }
 
         if (config_->chat.enabled && !chatConnected) {
-            // skip retries if the user hasn't filled in the required
-            // credentials -- prevents a 60s spam loop on a config gap
             bool hasCreds = false;
             {
                 config_->lockRead();
@@ -223,8 +213,6 @@ void Switcher::switcherThread()
             chatReconnectDelay_ = 0;
         }
 
-        // hold the config read lock for the whole tick so nobody
-        // can swap strings out from under us while we're working
         config_->lockRead();
 
         if (!config_->enabled) {
@@ -232,12 +220,10 @@ void Switcher::switcherThread()
             continue;
         }
 
-        // always poll so the status bar shows live bitrate
-        // even when we're not switching scenes
         bool polledOffline;
         {
-            std::lock_guard<std::mutex> lock(mutex_);
-            polledOffline = (getOnlineServerStatusLocked(nullptr) == SwitchType::Offline);
+            StreamServer* dummy = nullptr;
+            polledOffline = (getOnlineServerStatusLocked(&dummy) == SwitchType::Offline);
         }
 
         if (config_->onlyWhenStreaming && !isStreaming_) {
@@ -263,29 +249,37 @@ void Switcher::switcherThread()
     }
 }
 
+void Switcher::updateStatusCache()
+{
+    // Caller must hold mutex_
+    BitrateInfo info = lastBitrateInfo_;
+    
+    if (info.isOnline) {
+        cachedStatusString_ = "Status: " + formatTemplate(config_->messages.statusResponse);
+        cachedBitrateString_ = "Bitrate: " + std::to_string(info.bitrateKbps) + " kbps";
+    } else {
+        cachedStatusString_ = "Status: " + formatTemplate(config_->messages.statusOffline);
+        cachedBitrateString_ = "Bitrate: Offline";
+    }
+}
+
 void Switcher::doSwitchCheck()
 {
-    // grab the lock for the whole check so reloadServers() can't
-    // yank the rug out from under us mid-iteration
     std::lock_guard<std::mutex> lock(mutex_);
 
     StreamServer* activeServer = nullptr;
     SwitchType currentSwitchType = getOnlineServerStatusLocked(&activeServer);
 
-    // Handle starting scene auto-switch
     if (wasOnStartingScene_ && config_->options.switchFromStartingToLive) {
         if (currentSwitchType == SwitchType::Normal || currentSwitchType == SwitchType::Low) {
             wasOnStartingScene_ = false;
-            // Will switch to appropriate scene below
         }
     }
 
-    // Instant recover: force switch when coming back from offline
     bool forceSwitch = config_->instantRecover &&
                        prevSwitchType_ == SwitchType::Offline &&
                        currentSwitchType != SwitchType::Offline;
 
-    // If the active server changed, force a Normal switch instead of Previous
     if (currentSwitchType == SwitchType::Previous && activeServer) {
         if (!lastUsedServerName_.empty() && lastUsedServerName_ != activeServer->getName()) {
             currentSwitchType = SwitchType::Normal;
@@ -300,16 +294,16 @@ void Switcher::doSwitchCheck()
         sameTypeCount_ = 0;
         sameTypeStart_ = std::chrono::steady_clock::now();
         
-        // Track offline start time
         if (currentSwitchType == SwitchType::Offline) {
             offlineStart_ = std::chrono::steady_clock::now();
         }
     }
 
-    if (sameTypeCount_ < config_->retryAttempts && !forceSwitch)
+    if (sameTypeCount_ < config_->retryAttempts && !forceSwitch) {
+        updateStatusCache();
         return;
+    }
 
-    // Grace period: avoid false offline timeout right after stream start
     if (!config_->onlyWhenStreaming) {
         auto streamElapsed = std::chrono::steady_clock::now() - streamStartTime_;
         auto gracePeriod = std::chrono::seconds(config_->retryAttempts + 5);
@@ -320,13 +314,10 @@ void Switcher::doSwitchCheck()
 
     sameTypeCount_ = 0;
 
-    // Handle offline timeout
     handleOfflineTimeout();
 
-    // When offline, use last-known server for its override scenes
     StreamServer* serverForScenes = activeServer;
     if (currentSwitchType == SwitchType::Offline && !lastUsedServerName_.empty()) {
-        // Find the last used server for its override scenes
         for (auto& server : servers_) {
             if (server->getName() == lastUsedServerName_) {
                 serverForScenes = server.get();
@@ -342,7 +333,6 @@ void Switcher::doSwitchCheck()
         targetScene = getSceneForType(currentSwitchType, serverForScenes);
     }
 
-    // Track previous scene and last used server for recovery
     if (currentSwitchType == SwitchType::Normal || 
         currentSwitchType == SwitchType::Low) {
         prevScene_ = targetScene;
@@ -352,21 +342,21 @@ void Switcher::doSwitchCheck()
         lastUsedServerName_ = activeServer->getName();
     }
 
-    // Don't switch to offline while on starting scene (wait for feed)
     std::string currentScene = getCurrentScene();
     if (!config_->optionalScenes.starting.empty() &&
         currentScene == config_->optionalScenes.starting &&
         config_->options.switchFromStartingToLive &&
         currentSwitchType == SwitchType::Offline) {
-        // Don't switch to offline when on starting scene - wait for signal
+        updateStatusCache();
         return;
     }
 
-    // Only switch and announce if we're not already on the target scene
     if (getCurrentScene() != targetScene) {
         switchToScene(targetScene);
         announceSceneChange(currentSwitchType);
     }
+    
+    updateStatusCache();
 }
 
 void Switcher::handleRistStaleFrameFix(bool offline)
@@ -455,7 +445,6 @@ void Switcher::handleOfflineTimeout()
 
 void Switcher::handleStartingScene()
 {
-    // Called when we detect stream is online and we were on starting scene
     if (wasOnStartingScene_ && config_->options.switchFromStartingToLive) {
         wasOnStartingScene_ = false;
         switchToScene(config_->scenes.normal);
@@ -468,7 +457,6 @@ SwitchType Switcher::getOnlineServerStatus(StreamServer** activeServer)
     return getOnlineServerStatusLocked(activeServer);
 }
 
-// same thing but caller already holds mutex_ -- avoids double-lock
 SwitchType Switcher::getOnlineServerStatusLocked(StreamServer** activeServer)
 {
     for (auto &server : servers_) {
@@ -509,7 +497,6 @@ void Switcher::switchToScene(const std::string &sceneName)
 
 std::string Switcher::getSceneForType(SwitchType type, StreamServer* server)
 {
-    // Check for server override scenes
     if (server && server->hasOverrideScenes()) {
         const OverrideScenes& override = server->getOverrideScenes();
         switch (type) {
@@ -527,7 +514,6 @@ std::string Switcher::getSceneForType(SwitchType type, StreamServer* server)
         }
     }
 
-    // Default scenes
     switch (type) {
     case SwitchType::Normal:
         return config_->scenes.normal;
@@ -542,14 +528,12 @@ std::string Switcher::getSceneForType(SwitchType type, StreamServer* server)
 
 bool Switcher::isSceneSwitchable(const std::string &scene)
 {
-    // Check main switching scenes
     if (scene == config_->scenes.normal ||
         scene == config_->scenes.low ||
         scene == config_->scenes.offline) {
         return true;
     }
     
-    // Check if on starting scene and auto-switch is enabled
     if (wasOnStartingScene_ && scene == config_->optionalScenes.starting) {
         return config_->options.switchFromStartingToLive;
     }
@@ -573,7 +557,6 @@ std::string Switcher::getCurrentScene()
     return name;
 }
 
-// Manual scene switching methods
 void Switcher::switchToLive()
 {
     switchToScene(config_->scenes.normal);
@@ -615,7 +598,6 @@ void Switcher::refreshScene()
             return;
         }
 
-        // don't block the caller if a refresh is already running
         if (refreshing_) {
             blog(LOG_INFO, "[BitrateSceneSwitch] Refresh: already in progress, skipping");
             return;
@@ -645,8 +627,6 @@ void Switcher::refreshScene()
 
 void Switcher::fixMediaSources()
 {
-    // hit every source in the project, not just the active scene,
-    // so we catch RIST/SRT feeds on LIVE or LOW while BRB is showing
     obs_enum_sources([](void*, obs_source_t *source) -> bool {
         const char *sourceId = obs_source_get_id(source);
         if (!sourceId) return true;
@@ -668,7 +648,6 @@ void Switcher::fixMediaSources()
         obs_data_release(settings);
         std::transform(inputStr.begin(), inputStr.end(), inputStr.begin(), ::tolower);
 
-        // Match streaming protocol prefixes (rtmp/srt/udp/rist/rtsp)
         bool isStreamSource =
             inputStr.rfind("rtmp", 0) == 0 ||
             inputStr.rfind("srt", 0) == 0 ||
@@ -677,10 +656,6 @@ void Switcher::fixMediaSources()
             inputStr.rfind("rtsp", 0) == 0;
 
         if (isStreamSource) {
-            // Use media_restart instead of obs_source_update to avoid a
-            // full avformat teardown/reinit cycle.  The heavy-handed
-            // update path triggers a race in librist that can NULL-deref
-            // inside init_avformat on the mp_media_thread.
             obs_source_media_restart(source);
             blog(LOG_INFO, "[BitrateSceneSwitch] Fix: refreshed media source: %s",
                  obs_source_get_name(source));
@@ -806,9 +781,6 @@ bool Switcher::switchToSceneByName(const std::string &name)
 
 void Switcher::connectChat()
 {
-    // snapshot the chat config under the read lock so writers (settings
-    // dialog / websocket vendor) can't mutate strings out from under us
-    // while we're constructing the chat clients
     ChatConfig chatCfg;
     bool wantPubSub = false;
     {
@@ -1025,7 +997,6 @@ void Switcher::handleChatCommand(const ChatMessage& msg)
         if (isStreaming_) {
             reply("Stream is already running");
         } else {
-            // push to the main thread so OBS doesn't freak out
             obs_queue_task(OBS_TASK_UI, [](void*) {
                 obs_frontend_streaming_start();
             }, nullptr, false);
@@ -1045,7 +1016,6 @@ void Switcher::handleChatCommand(const ChatMessage& msg)
         }
         break;
     case ChatCommand::None:
-        // Check custom commands for unrecognized messages
         handleCustomCommands(msg);
         break;
     default:
@@ -1088,7 +1058,6 @@ std::string Switcher::formatTemplate(const std::string &tmpl, const std::string 
         }
     };
     
-    // Build placeholder values from current state
     BitrateInfo info = lastBitrateInfo_;
     std::string scene = sceneOverride.empty() ? getCurrentScene() : sceneOverride;
     
@@ -1116,7 +1085,6 @@ void Switcher::handleCustomCommands(const ChatMessage& msg)
         std::string triggerLower = cmd.trigger;
         std::transform(triggerLower.begin(), triggerLower.end(), triggerLower.begin(), ::tolower);
         
-        // Match exact command or command with trailing space (for args)
         if (msgLower == triggerLower || msgLower.rfind(triggerLower + " ", 0) == 0) {
             sendChatMessage(formatTemplate(cmd.response));
             return;
@@ -1154,6 +1122,18 @@ std::string Switcher::getStatusString()
     }
     
     return formatTemplate(config_->messages.statusOffline);
+}
+
+std::string Switcher::getCachedStatusLine()
+{
+    std::lock_guard<std::mutex> lock(statusCacheMutex_);
+    return cachedStatusString_;
+}
+
+std::string Switcher::getCachedBitrateLine()
+{
+    std::lock_guard<std::mutex> lock(statusCacheMutex_);
+    return cachedBitrateString_;
 }
 
 } // namespace BitrateSwitch
