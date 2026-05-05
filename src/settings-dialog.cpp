@@ -1212,17 +1212,18 @@ void SettingsDialog::refreshStatus()
         return;
     }
 
-    statusLabel_->setText("Status: " + QString::fromStdString(switcher_->getStatusString()));
+    std::string statusLine = switcher_->getCachedStatusLine();
+    std::string bitrateLine = switcher_->getCachedBitrateLine();
 
-    auto info = switcher_->getCurrentBitrate();
-    if (info.isOnline) {
-        statusLabel_->setStyleSheet("color: #a6e3a1; font-weight: bold; font-size: 13px;");
-        bitrateLabel_->setStyleSheet("color: #89dceb; font-weight: bold; font-size: 13px;");
-        bitrateLabel_->setText(QString("Bitrate: %1 kbps").arg(info.bitrateKbps));
-    } else {
+    statusLabel_->setText(QString::fromStdString(statusLine));
+    bitrateLabel_->setText(QString::fromStdString(bitrateLine));
+
+    if (bitrateLine.find("Offline") != std::string::npos) {
         statusLabel_->setStyleSheet("color: #f38ba8; font-weight: bold; font-size: 13px;");
         bitrateLabel_->setStyleSheet("color: #f38ba8; font-weight: bold; font-size: 13px;");
-        bitrateLabel_->setText("Bitrate: Offline");
+    } else {
+        statusLabel_->setStyleSheet("color: #a6e3a1; font-weight: bold; font-size: 13px;");
+        bitrateLabel_->setStyleSheet("color: #89dceb; font-weight: bold; font-size: 13px;");
     }
 
     updateStreamingFieldStates();
