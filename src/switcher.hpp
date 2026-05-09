@@ -17,8 +17,6 @@
 
 namespace BitrateSwitch {
 
-// Set false during plugin shutdown so chat-thread trampolines bouncing
-// through obs_queue_task can no-op instead of touching a destroyed Switcher.
 extern std::atomic<bool> g_pluginAlive;
 
 enum class SwitchType {
@@ -49,6 +47,10 @@ public:
     std::string getCurrentScene();
     bool isCurrentlyStreaming() const { return isStreaming_; }
     SwitchType getCurrentSwitchType() const { return prevSwitchType_; }
+    
+    // Fast cached accessors for UI timer (no network, no waiting on mutex_)
+    std::string getCachedStatusLine();
+    std::string getCachedBitrateLine();
 
     // Manual scene switching commands
     void switchToLive();
@@ -59,8 +61,8 @@ public:
     void switchToEnding();
     void refreshScene();
     void triggerSwitch();
-    void fixMediaSources();  // Refresh media sources (RTMP/SRT/etc)
-    bool switchToSceneByName(const std::string& name);  // Case-insensitive scene switch
+    void fixMediaSources();
+    bool switchToSceneByName(const std::string& name);
     
     // Chat integration
     void connectChat();
@@ -71,6 +73,7 @@ public:
 private:
     void switcherThread();
     void doSwitchCheck();
+    void updateStatusCache();
     
     SwitchType getOnlineServerStatus(StreamServer** activeServer);
     SwitchType getOnlineServerStatusLocked(StreamServer** activeServer);
@@ -109,6 +112,7 @@ private:
     std::chrono::steady_clock::time_point pubsubNextRetry_;
     int pubsubRetryDelay_ = 0;
     mutable std::mutex mutex_;
+    mutable std::mutex statusCacheMutex_;
 
     SwitchType prevSwitchType_ = SwitchType::Offline;
     uint8_t sameTypeCount_ = 0;
@@ -118,10 +122,14 @@ private:
     
     std::string currentScene_;
     std::string prevScene_;
-    std::string lastUsedServerName_;  // Track which server was last used (for override scenes when offline)
+    std::string lastUsedServerName_;
     bool wasOnStartingScene_ = false;
 
     BitrateInfo lastBitrateInfo_;
+    
+    // Cached UI strings updated by switcher thread, read by UI timer
+    std::string cachedStatusString_;
+    std::string cachedBitrateString_;
 
     // RIST stale frame fix
     bool ristFixPending_ = false;
