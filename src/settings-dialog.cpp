@@ -195,6 +195,7 @@ void SettingsDialog::populateServerTypeCombo(QComboBox *combo)
     combo->addItem("RIST",              static_cast<int>(ServerType::Rist));
     combo->addItem("OpenIRL",           static_cast<int>(ServerType::OpenIRL));
     combo->addItem("Xiu",              static_cast<int>(ServerType::Xiu));
+    combo->addItem("OpenRTMP",         static_cast<int>(ServerType::OpenRTMP));
 }
 
 void SettingsDialog::populateSceneComboBox(QComboBox *combo, bool allowEmpty)
@@ -666,6 +667,22 @@ QWidget *SettingsDialog::createServerPage(const StreamServerConfig *initial)
     form->addRow("Stats URL:", url);
     form->addRow("Publisher:", key);
     form->addRow("Priority:", priority);
+
+    auto updateServerFields = [type, url, key, form]() {
+        const bool openRTMP = type->currentData().toInt() == static_cast<int>(ServerType::OpenRTMP);
+        key->setVisible(!openRTMP);
+        if (QWidget *label = form->labelForField(key))
+            label->setVisible(!openRTMP);
+        url->setPlaceholderText(openRTMP
+            ? "http://localhost:8080/stats?key=sts_0123456789abcdef0123456789abcdef"
+            : "http://localhost:8181/stats");
+        url->setToolTip(openRTMP
+            ? "Use your OpenRTMP per-stream stats key (sts_...), not the publish/play key or API token."
+            : QString());
+    };
+    connect(type, QOverload<int>::of(&QComboBox::currentIndexChanged), page,
+            [updateServerFields](int) { updateServerFields(); });
+    updateServerFields();
 
     layout->addWidget(group);
     layout->addStretch();

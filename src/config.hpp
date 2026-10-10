@@ -19,7 +19,8 @@ enum class ServerType {
     Rist,
     OpenIRL,
     IrlHosting,
-    Xiu
+    Xiu,
+    OpenRTMP
 };
 
 struct Triggers {

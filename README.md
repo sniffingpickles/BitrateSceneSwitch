@@ -164,6 +164,7 @@ Add as many servers as you want on the **Servers** tab. Each one has its own pri
 |--------|-------------------|
 | **BELABOX** | `https://cloud.belabox.net/stats` |
 | **NGINX RTMP** | `http://localhost:8080/stat` |
+| **[OpenRTMP](https://github.com/OpenRTMP/librtmp2-server)** | `http://localhost:8080/stats?key=sts_...` |
 | **[Moo RIST](https://github.com/moo-the-cow/moo-rist-hosting-native)** | `http://localhost:8080/stats` |
 | **SRT Live Server** | `http://localhost:8181/stats` |
 | **MediaMTX** | `http://localhost:9997/v3/paths/get/` |

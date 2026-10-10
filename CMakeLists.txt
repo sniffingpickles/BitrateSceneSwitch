@@ -57,6 +57,8 @@ add_library(${PROJECT_NAME} MODULE
     src/servers/irlhosting.hpp
     src/servers/xiu.cpp
     src/servers/xiu.hpp
+    src/servers/openrtmp.cpp
+    src/servers/openrtmp.hpp
     src/chat-client.cpp
     src/chat-client.hpp
     src/ws-client.cpp

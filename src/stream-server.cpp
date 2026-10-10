@@ -10,6 +10,7 @@
 #include "servers/openirl.hpp"
 #include "servers/irlhosting.hpp"
 #include "servers/xiu.hpp"
+#include "servers/openrtmp.hpp"
 #include <obs-module.h>
 
 namespace BitrateSwitch {
@@ -64,6 +65,8 @@ std::unique_ptr<StreamServer> StreamServer::create(const StreamServerConfig &con
         return std::make_unique<IrlHostingServer>(config);
     case ServerType::Xiu:
         return std::make_unique<XiuServer>(config);
+    case ServerType::OpenRTMP:
+        return std::make_unique<OpenRTMPServer>(config);
     default:
         blog(LOG_WARNING, "[BitrateSceneSwitch] Unknown server type %d, using Belabox", 
              static_cast<int>(config.type));
